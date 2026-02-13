@@ -416,6 +416,9 @@ $csrfToken = $_SESSION['csrf_token'];
     ul { list-style:none; padding:0; margin:0; display:grid; gap:10px; }
     li { background:#0b1220; border:1px solid #1f2937; border-radius:12px; padding:12px; }
     .task-line { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+    .accordion-toggle { min-width:42px; padding:11px 10px; font-size:16px; line-height:1; }
+    .task-details { display:none; }
+    .task-details.is-open { display:block; }
     .task-title { font-size:1rem; line-height:1.35; margin-right:auto; word-break:break-word; }
     .desc { color:#cbd5e1; margin:8px 0; white-space:pre-wrap; }
     .done { text-decoration:line-through; color:var(--muted); }
@@ -471,6 +474,7 @@ $csrfToken = $_SESSION['csrf_token'];
               <li class="task-item">
                 <div class="task-line">
                   <span class="task-title <?= !empty($task['done']) ? 'done' : ''; ?>"><?= htmlspecialchars((string) ($task['title'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></span>
+                  <button class="ghost-btn accordion-toggle js-accordion-toggle" type="button" aria-expanded="false" title="Show details">▾</button>
                   <form method="get">
                     <?php if ($searchQuery !== ''): ?><input type="hidden" name="q" value="<?= htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
                     <input type="hidden" name="edit" value="<?= htmlspecialchars((string) ($task['id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
@@ -506,23 +510,25 @@ $csrfToken = $_SESSION['csrf_token'];
                     </div>
                   </form>
                 <?php else: ?>
-                  <?php if (($task['description'] ?? '') !== ''): ?>
-                    <p class="desc"><?= htmlspecialchars((string) $task['description'], ENT_QUOTES, 'UTF-8'); ?></p>
-                  <?php endif; ?>
+                  <div class="task-details js-task-details">
+                    <?php if (($task['description'] ?? '') !== ''): ?>
+                      <p class="desc"><?= htmlspecialchars((string) $task['description'], ENT_QUOTES, 'UTF-8'); ?></p>
+                    <?php endif; ?>
 
-                  <div class="progress-wrap">
-                    <progress class="js-progress-bar" max="100" value="<?= (int) ($task['progress'] ?? 0); ?>"></progress>
-                    <strong class="js-progress-value"><?= (int) ($task['progress'] ?? 0); ?>%</strong>
+                    <div class="progress-wrap">
+                      <progress class="js-progress-bar" max="100" value="<?= (int) ($task['progress'] ?? 0); ?>"></progress>
+                      <strong class="js-progress-value"><?= (int) ($task['progress'] ?? 0); ?>%</strong>
+                    </div>
+
+                    <form class="slider-form" method="post">
+                      <input type="hidden" name="action" value="updateProgress">
+                      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
+                      <input type="hidden" name="id" value="<?= htmlspecialchars((string) ($task['id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                      <?php if ($searchQuery !== ''): ?><input type="hidden" name="q" value="<?= htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+                      <input class="js-progress-slider" type="range" name="progress" min="0" max="100" step="1" value="<?= (int) ($task['progress'] ?? 0); ?>">
+                      <button class="ghost-btn" type="submit">Set progress</button>
+                    </form>
                   </div>
-
-                  <form class="slider-form" method="post">
-                    <input type="hidden" name="action" value="updateProgress">
-                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
-                    <input type="hidden" name="id" value="<?= htmlspecialchars((string) ($task['id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
-                    <?php if ($searchQuery !== ''): ?><input type="hidden" name="q" value="<?= htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
-                    <input class="js-progress-slider" type="range" name="progress" min="0" max="100" step="1" value="<?= (int) ($task['progress'] ?? 0); ?>">
-                    <button class="ghost-btn" type="submit">Set progress</button>
-                  </form>
                 <?php endif; ?>
               </li>
             <?php endforeach; ?>

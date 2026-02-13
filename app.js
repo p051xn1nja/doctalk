@@ -6,6 +6,19 @@ document.addEventListener('DOMContentLoaded', function () {
     var slider = item.querySelector('.js-progress-slider');
     var valueText = item.querySelector('.js-progress-value');
     var bar = item.querySelector('.js-progress-bar');
+    var toggle = item.querySelector('.js-accordion-toggle');
+    var details = item.querySelector('.js-task-details');
+
+    if (toggle && details) {
+      toggle.addEventListener('click', function (currentToggle, currentDetails) {
+        return function () {
+          var open = currentDetails.classList.contains('is-open');
+          currentDetails.classList.toggle('is-open');
+          currentToggle.setAttribute('aria-expanded', open ? 'false' : 'true');
+          currentToggle.textContent = open ? '▾' : '▴';
+        };
+      }(toggle, details), false);
+    }
 
     if (!slider || !valueText || !bar) {
       continue;
