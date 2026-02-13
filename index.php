@@ -493,7 +493,7 @@ $csrfToken = $_SESSION['csrf_token'];
                     <textarea name="description" maxlength="1000" placeholder="Task description (optional)"><?= htmlspecialchars((string) ($task['description'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></textarea>
                     <div class="task-form-row">
                       <button class="add-btn" type="submit">Save changes</button>
-                      <a class="danger-btn" style="text-decoration:none;display:inline-flex;align-items:center;border-radius:999px;" href="<?= htmlspecialchars($searchQuery === '' ? appPath('index.php') : appPath('index.php') . '?q=' . rawurlencode($searchQuery), ENT_QUOTES, 'UTF-8'); ?>">Cancel</a>
+                      <a class="danger-btn" style="text-decoration:none;display:inline-flex;align-items:center;" href="<?= htmlspecialchars($searchQuery === '' ? appPath('index.php') : appPath('index.php') . '?q=' . rawurlencode($searchQuery), ENT_QUOTES, 'UTF-8'); ?>">Cancel</a>
                     </div>
                   </form>
                 <?php else: ?>
@@ -523,22 +523,6 @@ $csrfToken = $_SESSION['csrf_token'];
     <?php endif; ?>
   </main>
 
-  <script>
-    document.querySelectorAll('.task-item').forEach((item) => {
-      const slider = item.querySelector('.js-progress-slider');
-      const valueText = item.querySelector('.js-progress-value');
-      const bar = item.querySelector('.js-progress-bar');
-
-      if (!slider || !valueText || !bar) {
-        return;
-      }
-
-      slider.addEventListener('input', () => {
-        const value = Number(slider.value);
-        valueText.textContent = `${value}%`;
-        bar.value = value;
-      });
-    });
-  </script>
+  <script src="<?= htmlspecialchars(appPath('app.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
 </body>
 </html>
