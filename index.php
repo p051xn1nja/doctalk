@@ -406,7 +406,7 @@ $csrfToken = $_SESSION['csrf_token'];
     .day-heading { margin:0 0 8px; color:#cbd5e1; font-size:1rem; }
     ul { list-style:none; padding:0; margin:0; display:grid; gap:10px; }
     li { background:#0b1220; border:1px solid #1f2937; border-radius:12px; padding:12px; }
-    .task-line { display:flex; align-items:center; gap:8px; }
+    .task-line { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
     .task-title { font-size:1rem; line-height:1.35; margin-right:auto; word-break:break-word; }
     .desc { color:#cbd5e1; margin:8px 0; white-space:pre-wrap; }
     .done { text-decoration:line-through; color:var(--muted); }
@@ -493,7 +493,7 @@ $csrfToken = $_SESSION['csrf_token'];
                     <textarea name="description" maxlength="1000" placeholder="Task description (optional)"><?= htmlspecialchars((string) ($task['description'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></textarea>
                     <div class="task-form-row">
                       <button class="add-btn" type="submit">Save changes</button>
-                      <a class="ghost-btn" style="text-decoration:none;display:inline-flex;align-items:center;" href="<?= htmlspecialchars($searchQuery === '' ? appPath('index.php') : appPath('index.php') . '?q=' . rawurlencode($searchQuery), ENT_QUOTES, 'UTF-8'); ?>">Cancel</a>
+                      <a class="danger-btn" style="text-decoration:none;display:inline-flex;align-items:center;border-radius:999px;" href="<?= htmlspecialchars($searchQuery === '' ? appPath('index.php') : appPath('index.php') . '?q=' . rawurlencode($searchQuery), ENT_QUOTES, 'UTF-8'); ?>">Cancel</a>
                     </div>
                   </form>
                 <?php else: ?>
