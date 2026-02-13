@@ -1,4 +1,18 @@
 document.addEventListener('DOMContentLoaded', function () {
+  function hasClass(el, className) {
+    return new RegExp('(^|\\s)' + className + '(\\s|$)').test(el.className);
+  }
+
+  function addClass(el, className) {
+    if (!hasClass(el, className)) {
+      el.className = (el.className + ' ' + className).replace(/\s+/g, ' ').replace(/^\s+|\s+$/g, '');
+    }
+  }
+
+  function removeClass(el, className) {
+    el.className = el.className.replace(new RegExp('(^|\\s)' + className + '(?=\\s|$)', 'g'), ' ').replace(/\s+/g, ' ').replace(/^\s+|\s+$/g, '');
+  }
+
   var items = document.querySelectorAll('.task-item');
 
   for (var i = 0; i < items.length; i += 1) {
@@ -11,13 +25,17 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (toggle && details) {
       var syncToggle = function () {
-        var open = !!details.open;
+        var open = hasClass(details, 'is-open');
         toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
         toggle.textContent = open ? 'Details ▴' : 'Details ▾';
       };
 
       toggle.addEventListener('click', function () {
-        details.open = !details.open;
+        if (hasClass(details, 'is-open')) {
+          removeClass(details, 'is-open');
+        } else {
+          addClass(details, 'is-open');
+        }
         syncToggle();
       }, false);
 
