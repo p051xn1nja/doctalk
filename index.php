@@ -451,7 +451,7 @@ $csrfToken = $_SESSION['csrf_token'];
       <?php endif; ?>
     </form>
 
-    <form class="task-form" method="post" autocomplete="off">
+    <form class="task-form js-edit-form" method="post" autocomplete="off" data-cancel-url="<?= htmlspecialchars($searchQuery === '' ? appPath('index.php') : appPath('index.php') . '?q=' . rawurlencode($searchQuery), ENT_QUOTES, 'UTF-8'); ?>">
       <input type="hidden" name="action" value="add">
       <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
       <input name="title" type="text" maxlength="120" placeholder="Task title" required>
@@ -501,9 +501,20 @@ $csrfToken = $_SESSION['csrf_token'];
                     <?php if ($searchQuery !== ''): ?><input type="hidden" name="q" value="<?= htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
                     <input name="title" type="text" maxlength="120" required value="<?= htmlspecialchars((string) ($task['title'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
                     <textarea name="description" maxlength="1000" placeholder="Task description (optional)"><?= htmlspecialchars((string) ($task['description'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></textarea>
+
+                    <div class="task-details is-open">
+                      <?php if (($task['description'] ?? '') !== ''): ?>
+                        <p class="desc"><?= htmlspecialchars((string) $task['description'], ENT_QUOTES, 'UTF-8'); ?></p>
+                      <?php endif; ?>
+                      <div class="progress-wrap">
+                        <progress max="100" value="<?= (int) ($task['progress'] ?? 0); ?>"></progress>
+                        <strong><?= (int) ($task['progress'] ?? 0); ?>%</strong>
+                      </div>
+                    </div>
+
                     <div class="task-form-row">
                       <button class="add-btn" type="submit">Save changes</button>
-                      <a class="danger-btn" href="<?= htmlspecialchars($searchQuery === '' ? appPath('index.php') : appPath('index.php') . '?q=' . rawurlencode($searchQuery), ENT_QUOTES, 'UTF-8'); ?>">Cancel</a>
+                      <a class="danger-btn js-cancel-edit" href="<?= htmlspecialchars($searchQuery === '' ? appPath('index.php') : appPath('index.php') . '?q=' . rawurlencode($searchQuery), ENT_QUOTES, 'UTF-8'); ?>">Cancel</a>
                     </div>
                   </form>
                 <?php else: ?>
