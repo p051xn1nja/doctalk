@@ -36,7 +36,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     syncToggle(item);
 
-    if (!slider || !valueText || !bar) {
+    if (!slider || !valueText) {
       continue;
     }
 
@@ -44,7 +44,9 @@ document.addEventListener('DOMContentLoaded', function () {
       return function () {
         var value = Number(currentSlider.value || 0);
         currentValueText.textContent = value + '%';
-        currentBar.value = value;
+        if (currentBar) {
+          currentBar.value = value;
+        }
       };
     }(slider, valueText, bar);
 

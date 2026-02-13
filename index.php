@@ -519,12 +519,9 @@ $csrfToken = $_SESSION['csrf_token'];
                       <?php if (($task['description'] ?? '') !== ''): ?>
                         <p class="desc"><?= htmlspecialchars((string) $task['description'], ENT_QUOTES, 'UTF-8'); ?></p>
                       <?php endif; ?>
-                      <div class="progress-wrap">
-                        <progress class="js-progress-bar" max="100" value="<?= (int) ($task['progress'] ?? 0); ?>"></progress>
-                        <strong class="js-progress-value"><?= (int) ($task['progress'] ?? 0); ?>%</strong>
-                      </div>
                       <div class="slider-form">
                         <input class="js-progress-slider" type="range" name="progress" min="0" max="100" step="1" value="<?= (int) ($task['progress'] ?? 0); ?>">
+                        <strong class="js-progress-value"><?= (int) ($task['progress'] ?? 0); ?>%</strong>
                       </div>
                     </div>
 
