@@ -132,7 +132,8 @@ $csrfToken = $_SESSION['csrf_token'];
     body {
       margin: 0;
       min-height: 100vh;
-      background: radial-gradient(circle at top, #1e293b, var(--bg));
+      background-color: #0f172a;
+      background-image: radial-gradient(circle at top, #1e293b, #0f172a);
       color: var(--text);
       font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
       display: grid;
@@ -142,7 +143,7 @@ $csrfToken = $_SESSION['csrf_token'];
 
     .card {
       width: min(420px, 100%);
-      background: color-mix(in srgb, var(--card) 92%, black 8%);
+      background-color: #111827;
       border: 1px solid #1f2937;
       border-radius: 18px;
       box-shadow: 0 20px 40px rgba(0, 0, 0, .35);
