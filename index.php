@@ -188,6 +188,19 @@ function lowerSafe(string $value): string
     return function_exists('mb_strtolower') ? mb_strtolower($value) : strtolower($value);
 }
 
+function containsSafe(string $haystack, string $needle): bool
+{
+    if ($needle === '') {
+        return true;
+    }
+
+    if (function_exists('str_contains')) {
+        return str_contains($haystack, $needle);
+    }
+
+    return strpos($haystack, $needle) !== false;
+}
+
 function groupedByDay(array $tasks): array
 {
     $groups = [];
@@ -354,7 +367,7 @@ $filteredTasks = array_values(array_filter($tasks, static function (array $task)
     }
 
     $haystack = lowerSafe((string) (($task['title'] ?? '') . ' ' . ($task['description'] ?? '')));
-    return str_contains($haystack, lowerSafe($searchQuery));
+    return containsSafe($haystack, lowerSafe($searchQuery));
 }));
 
 $completedCount = count(array_filter($tasks, static fn(array $task): bool => (bool) ($task['done'] ?? false)));
