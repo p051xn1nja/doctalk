@@ -562,6 +562,6 @@ $csrfToken = $_SESSION['csrf_token'];
     <?php endif; ?>
   </main>
 
-  <script src="<?= htmlspecialchars(appPath('app.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
+  <script src="<?= htmlspecialchars(appPath('app.js') . '?v=' . (string) @filemtime(__DIR__ . '/app.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
 </body>
 </html>
