@@ -14,6 +14,11 @@ if (!isset($_SESSION['csrf_token']) || !is_string($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
+if (!isAuthenticated()) {
+    header('Location: /login.php', true, 303);
+    exit;
+}
+
 function configureSession(): void
 {
     session_set_cookie_params([
@@ -34,6 +39,11 @@ function applySecurityHeaders(): void
     header("Content-Security-Policy: default-src 'self'; style-src 'self' 'unsafe-inline'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; object-src 'none'");
     header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
     header('Pragma: no-cache');
+}
+
+function isAuthenticated(): bool
+{
+    return !empty($_SESSION['authenticated']) && $_SESSION['authenticated'] === true;
 }
 
 function loadTasks(): array
@@ -163,6 +173,13 @@ if ($method === 'POST') {
         exit;
     }
 
+    if ($action === 'logout') {
+        session_unset();
+        session_destroy();
+        header('Location: /login.php', true, 303);
+        exit;
+    }
+
     try {
         if ($action === 'add') {
             $title = sanitizeTaskTitle((string) ($_POST['title'] ?? ''));
@@ -232,7 +249,7 @@ $csrfToken = $_SESSION['csrf_token'];
       --muted: #94a3b8;
       --text: #e2e8f0;
       --danger: #ef4444;
-      --warn: #f59e0b;
+      --info: #38bdf8;
     }
 
     * { box-sizing: border-box; }
@@ -256,9 +273,16 @@ $csrfToken = $_SESSION['csrf_token'];
       padding: 24px;
     }
 
-    h1 {
-      margin-top: 0;
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
       margin-bottom: 8px;
+    }
+
+    h1 {
+      margin: 0;
       font-size: clamp(1.5rem, 1.25rem + 1.5vw, 2.2rem);
     }
 
@@ -303,6 +327,7 @@ $csrfToken = $_SESSION['csrf_token'];
     .add-btn { background: var(--accent); color: #052e16; }
     .ghost-btn { background: #1e293b; color: var(--text); }
     .danger-btn { background: var(--danger); color: #fee2e2; }
+    .logout-btn { background: var(--info); color: #082f49; }
 
     ul {
       list-style: none;
@@ -346,7 +371,14 @@ $csrfToken = $_SESSION['csrf_token'];
 </head>
 <body>
   <main class="app">
-    <h1>TaskFlow</h1>
+    <div class="top-bar">
+      <h1>TaskFlow</h1>
+      <form method="post">
+        <input type="hidden" name="action" value="logout">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
+        <button class="logout-btn" type="submit">Log out</button>
+      </form>
+    </div>
     <p class="meta">A hardened PHP to-do app. Completed <?= $completedCount; ?> / <?= $totalCount; ?> tasks.</p>
 
     <?php if ($error !== ''): ?>
