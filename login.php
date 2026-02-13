@@ -23,13 +23,33 @@ if (!isset($_SESSION['lock_until']) || !is_int($_SESSION['lock_until'])) {
 
 function configureSession(): void
 {
+    $basePath = appBasePath();
+
     session_set_cookie_params([
         'lifetime' => 0,
-        'path' => '/',
+        'path' => $basePath === '' ? '/' : $basePath . '/',
         'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
         'httponly' => true,
         'samesite' => 'Strict',
     ]);
+}
+
+function appBasePath(): string
+{
+    $scriptName = (string) ($_SERVER['SCRIPT_NAME'] ?? '');
+    $dir = str_replace('\\', '/', dirname($scriptName));
+
+    if ($dir === '/' || $dir === '.') {
+        return '';
+    }
+
+    return rtrim($dir, '/');
+}
+
+function appPath(string $targetFile): string
+{
+    $basePath = appBasePath();
+    return ($basePath === '' ? '' : $basePath) . '/' . ltrim($targetFile, '/');
 }
 
 function applySecurityHeaders(): void
@@ -65,7 +85,7 @@ if (!in_array($method, ['GET', 'POST'], true)) {
 }
 
 if (!empty($_SESSION['authenticated']) && $_SESSION['authenticated'] === true) {
-    header('Location: /index.php', true, 303);
+    header('Location: ' . appPath('index.php'), true, 303);
     exit;
 }
 
@@ -95,7 +115,7 @@ if ($method === 'POST') {
             $_SESSION['login_attempts'] = 0;
             $_SESSION['lock_until'] = 0;
             $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-            header('Location: /index.php', true, 303);
+            header('Location: ' . appPath('index.php'), true, 303);
             exit;
         }
 

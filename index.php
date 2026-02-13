@@ -15,19 +15,39 @@ if (!isset($_SESSION['csrf_token']) || !is_string($_SESSION['csrf_token'])) {
 }
 
 if (!isAuthenticated()) {
-    header('Location: /login.php', true, 303);
+    header('Location: ' . appPath('login.php'), true, 303);
     exit;
 }
 
 function configureSession(): void
 {
+    $basePath = appBasePath();
+
     session_set_cookie_params([
         'lifetime' => 0,
-        'path' => '/',
+        'path' => $basePath === '' ? '/' : $basePath . '/',
         'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
         'httponly' => true,
         'samesite' => 'Strict',
     ]);
+}
+
+function appBasePath(): string
+{
+    $scriptName = (string) ($_SERVER['SCRIPT_NAME'] ?? '');
+    $dir = str_replace('\\', '/', dirname($scriptName));
+
+    if ($dir === '/' || $dir === '.') {
+        return '';
+    }
+
+    return rtrim($dir, '/');
+}
+
+function appPath(string $targetFile): string
+{
+    $basePath = appBasePath();
+    return ($basePath === '' ? '' : $basePath) . '/' . ltrim($targetFile, '/');
 }
 
 function applySecurityHeaders(): void
@@ -119,7 +139,7 @@ function saveTasks(array $tasks): void
 
 function redirectHome(): void
 {
-    header('Location: /index.php', true, 303);
+    header('Location: ' . appPath('index.php'), true, 303);
     exit;
 }
 
@@ -176,7 +196,7 @@ if ($method === 'POST') {
     if ($action === 'logout') {
         session_unset();
         session_destroy();
-        header('Location: /login.php', true, 303);
+        header('Location: ' . appPath('login.php'), true, 303);
         exit;
     }
 
