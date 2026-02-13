@@ -512,7 +512,7 @@ $csrfToken = $_SESSION['csrf_token'];
                     <input name="title" type="text" maxlength="120" required value="<?= htmlspecialchars((string) ($task['title'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
                     <textarea name="description" maxlength="1000" placeholder="Task description (optional)"><?= htmlspecialchars((string) ($task['description'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></textarea>
 
-                    <div class="task-details is-open">
+                    <div class="task-details js-task-details is-open">
                       <?php if (($task['description'] ?? '') !== ''): ?>
                         <p class="desc"><?= htmlspecialchars((string) $task['description'], ENT_QUOTES, 'UTF-8'); ?></p>
                       <?php endif; ?>
