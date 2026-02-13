@@ -324,12 +324,20 @@ if ($method === 'POST') {
             $id = (string) ($_POST['id'] ?? '');
             $title = sanitizeTaskTitle((string) ($_POST['title'] ?? ''));
             $description = sanitizeTaskDescription((string) ($_POST['description'] ?? ''));
+            $progress = isset($_POST['progress']) ? (int) $_POST['progress'] : null;
+            if ($progress !== null) {
+                $progress = max(0, min(100, $progress));
+            }
 
             if (preg_match('/^[a-f0-9]{24}$/', $id) === 1 && $title !== '') {
                 foreach ($tasks as &$task) {
                     if (($task['id'] ?? '') === $id) {
                         $task['title'] = $title;
                         $task['description'] = $description;
+                        if ($progress !== null) {
+                            $task['progress'] = $progress;
+                            $task['done'] = $progress >= 100;
+                        }
                         break;
                     }
                 }
@@ -451,7 +459,7 @@ $csrfToken = $_SESSION['csrf_token'];
       <?php endif; ?>
     </form>
 
-    <form class="task-form js-edit-form" method="post" autocomplete="off" data-cancel-url="<?= htmlspecialchars($searchQuery === '' ? appPath('index.php') : appPath('index.php') . '?q=' . rawurlencode($searchQuery), ENT_QUOTES, 'UTF-8'); ?>">
+    <form class="task-form" method="post" autocomplete="off">
       <input type="hidden" name="action" value="add">
       <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
       <input name="title" type="text" maxlength="120" placeholder="Task title" required>
@@ -494,7 +502,7 @@ $csrfToken = $_SESSION['csrf_token'];
                 </div>
 
                 <?php if ($isEditing): ?>
-                  <form class="task-form" method="post" autocomplete="off">
+                  <form class="task-form js-edit-form" method="post" autocomplete="off" data-cancel-url="<?= htmlspecialchars($searchQuery === '' ? appPath('index.php') : appPath('index.php') . '?q=' . rawurlencode($searchQuery), ENT_QUOTES, 'UTF-8'); ?>">
                     <input type="hidden" name="action" value="editTask">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
                     <input type="hidden" name="id" value="<?= htmlspecialchars((string) ($task['id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
@@ -507,8 +515,11 @@ $csrfToken = $_SESSION['csrf_token'];
                         <p class="desc"><?= htmlspecialchars((string) $task['description'], ENT_QUOTES, 'UTF-8'); ?></p>
                       <?php endif; ?>
                       <div class="progress-wrap">
-                        <progress max="100" value="<?= (int) ($task['progress'] ?? 0); ?>"></progress>
-                        <strong><?= (int) ($task['progress'] ?? 0); ?>%</strong>
+                        <progress class="js-progress-bar" max="100" value="<?= (int) ($task['progress'] ?? 0); ?>"></progress>
+                        <strong class="js-progress-value"><?= (int) ($task['progress'] ?? 0); ?>%</strong>
+                      </div>
+                      <div class="slider-form">
+                        <input class="js-progress-slider" type="range" name="progress" min="0" max="100" step="1" value="<?= (int) ($task['progress'] ?? 0); ?>">
                       </div>
                     </div>
 

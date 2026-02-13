@@ -1,27 +1,33 @@
 document.addEventListener('DOMContentLoaded', function () {
+  function cleanSpaces(value) {
+    return value.replace(/^\s+|\s+$/g, '').replace(/\s+/g, ' ');
+  }
+
   function hasClass(el, className) {
     return new RegExp('(^|\\s)' + className + '(\\s|$)').test(el.className);
   }
 
   function addClass(el, className) {
     if (!hasClass(el, className)) {
-      el.className = (el.className + ' ' + className).trim();
+      el.className = cleanSpaces(el.className + ' ' + className);
     }
   }
 
   function removeClass(el, className) {
-    el.className = el.className.replace(new RegExp('(^|\\s)' + className + '(?=\\s|$)', 'g'), ' ').replace(/\s+/g, ' ').trim();
+    el.className = cleanSpaces(el.className.replace(new RegExp('(^|\\s)' + className + '(?=\\s|$)', 'g'), ' '));
   }
 
-  function toggleDetails(toggle, details) {
-    var open = hasClass(details, 'is-open');
+  function setDetailsOpen(toggle, details, open) {
     if (open) {
-      removeClass(details, 'is-open');
-    } else {
       addClass(details, 'is-open');
+      details.style.display = 'block';
+    } else {
+      removeClass(details, 'is-open');
+      details.style.display = 'none';
     }
-    toggle.setAttribute('aria-expanded', open ? 'false' : 'true');
-    toggle.textContent = open ? '▾' : '▴';
+
+    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    toggle.textContent = open ? '▴' : '▾';
   }
 
   var items = document.querySelectorAll('.task-item');
@@ -35,9 +41,12 @@ document.addEventListener('DOMContentLoaded', function () {
     var details = item.querySelector('.js-task-details');
 
     if (toggle && details) {
+      setDetailsOpen(toggle, details, hasClass(details, 'is-open'));
+
       toggle.addEventListener('click', function (currentToggle, currentDetails) {
         return function () {
-          toggleDetails(currentToggle, currentDetails);
+          var open = hasClass(currentDetails, 'is-open');
+          setDetailsOpen(currentToggle, currentDetails, !open);
         };
       }(toggle, details), false);
     }
