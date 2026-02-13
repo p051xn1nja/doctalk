@@ -397,7 +397,16 @@ $csrfToken = $_SESSION['csrf_token'];
     .task-form-row { display:flex; gap:10px; }
     input[type="text"], textarea { width:100%; background:#0b1220; color:var(--text); border:1px solid #334155; border-radius:12px; padding:12px 14px; }
     textarea { min-height:88px; resize:vertical; }
-    button { border:0; border-radius:12px; padding:11px 14px; font-weight:600; cursor:pointer; }
+    button { border:0; cursor:pointer; }
+    .add-btn, .ghost-btn, .danger-btn, .logout-btn {
+      border-radius:12px;
+      padding:11px 14px;
+      font-weight:600;
+      text-decoration:none;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+    }
     .add-btn { background:var(--accent); color:#052e16; }
     .ghost-btn { background:#1e293b; color:var(--text); }
     .danger-btn { background:var(--danger); color:#fee2e2; }
@@ -493,7 +502,7 @@ $csrfToken = $_SESSION['csrf_token'];
                     <textarea name="description" maxlength="1000" placeholder="Task description (optional)"><?= htmlspecialchars((string) ($task['description'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></textarea>
                     <div class="task-form-row">
                       <button class="add-btn" type="submit">Save changes</button>
-                      <a class="danger-btn" style="text-decoration:none;display:inline-flex;align-items:center;" href="<?= htmlspecialchars($searchQuery === '' ? appPath('index.php') : appPath('index.php') . '?q=' . rawurlencode($searchQuery), ENT_QUOTES, 'UTF-8'); ?>">Cancel</a>
+                      <a class="danger-btn" href="<?= htmlspecialchars($searchQuery === '' ? appPath('index.php') : appPath('index.php') . '?q=' . rawurlencode($searchQuery), ENT_QUOTES, 'UTF-8'); ?>">Cancel</a>
                     </div>
                   </form>
                 <?php else: ?>
