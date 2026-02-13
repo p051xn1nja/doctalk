@@ -421,9 +421,12 @@ $csrfToken = $_SESSION['csrf_token'];
     ul { list-style:none; padding:0; margin:0; display:grid; gap:10px; }
     li { background:#0b1220; border:1px solid #1f2937; border-radius:12px; padding:12px; }
     .task-line { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
-    .accordion-toggle { min-width:42px; padding:11px 10px; font-size:16px; line-height:1; }
-    .task-details { display:none; }
-    .task-details.is-open { display:block; }
+    .accordion-toggle { min-width:42px; padding:8px 10px; font-size:14px; line-height:1; }
+    .task-details { margin-top:4px; }
+    .task-details summary { list-style:none; cursor:pointer; user-select:none; width:max-content; margin-bottom:8px; }
+    .task-details summary::-webkit-details-marker { display:none; }
+    .task-details summary::before { content:'▾ '; }
+    .task-details[open] summary::before { content:'▴ '; }
     .task-title { font-size:1rem; line-height:1.35; margin-right:auto; word-break:break-word; }
     .task-percent { color:#cbd5e1; font-size:.9rem; min-width:48px; text-align:right; }
     .desc { color:#cbd5e1; margin:8px 0; white-space:pre-wrap; }
@@ -481,7 +484,6 @@ $csrfToken = $_SESSION['csrf_token'];
                 <div class="task-line">
                   <span class="task-title <?= !empty($task['done']) ? 'done' : ''; ?>"><?= htmlspecialchars((string) ($task['title'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></span>
                   <span class="task-percent"><?= (int) ($task['progress'] ?? 0); ?>%</span>
-                  <button class="ghost-btn accordion-toggle js-accordion-toggle" type="button" aria-expanded="false" title="Show details">▾</button>
                   <form method="get">
                     <?php if ($searchQuery !== ''): ?><input type="hidden" name="q" value="<?= htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
                     <input type="hidden" name="edit" value="<?= htmlspecialchars((string) ($task['id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
@@ -512,7 +514,8 @@ $csrfToken = $_SESSION['csrf_token'];
                     <input name="title" type="text" maxlength="120" required value="<?= htmlspecialchars((string) ($task['title'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
                     <textarea name="description" maxlength="1000" placeholder="Task description (optional)"><?= htmlspecialchars((string) ($task['description'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></textarea>
 
-                    <div class="task-details js-task-details is-open">
+                    <details class="task-details js-task-details" open>
+                      <summary class="ghost-btn accordion-toggle">Details</summary>
                       <?php if (($task['description'] ?? '') !== ''): ?>
                         <p class="desc"><?= htmlspecialchars((string) $task['description'], ENT_QUOTES, 'UTF-8'); ?></p>
                       <?php endif; ?>
@@ -523,7 +526,7 @@ $csrfToken = $_SESSION['csrf_token'];
                       <div class="slider-form">
                         <input class="js-progress-slider" type="range" name="progress" min="0" max="100" step="1" value="<?= (int) ($task['progress'] ?? 0); ?>">
                       </div>
-                    </div>
+                    </details>
 
                     <div class="task-form-row">
                       <button class="add-btn" type="submit">Save changes</button>
@@ -531,7 +534,8 @@ $csrfToken = $_SESSION['csrf_token'];
                     </div>
                   </form>
                 <?php else: ?>
-                  <div class="task-details js-task-details">
+                  <details class="task-details js-task-details">
+                    <summary class="ghost-btn accordion-toggle">Details</summary>
                     <?php if (($task['description'] ?? '') !== ''): ?>
                       <p class="desc"><?= htmlspecialchars((string) $task['description'], ENT_QUOTES, 'UTF-8'); ?></p>
                     <?php endif; ?>
@@ -549,7 +553,7 @@ $csrfToken = $_SESSION['csrf_token'];
                       <input class="js-progress-slider" type="range" name="progress" min="0" max="100" step="1" value="<?= (int) ($task['progress'] ?? 0); ?>">
                       <button class="ghost-btn" type="submit">Set progress</button>
                     </form>
-                  </div>
+                  </details>
                 <?php endif; ?>
               </li>
             <?php endforeach; ?>
