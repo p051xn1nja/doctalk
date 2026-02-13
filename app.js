@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', function () {
   function cleanSpaces(value) {
-    return value.replace(/^\s+|\s+$/g, '').replace(/\s+/g, ' ');
+    return value.replace(/\s+/g, ' ').replace(/^\s+|\s+$/g, '');
   }
 
   function hasClass(el, className) {

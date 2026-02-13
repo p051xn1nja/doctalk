@@ -425,6 +425,7 @@ $csrfToken = $_SESSION['csrf_token'];
     .task-details { display:none; }
     .task-details.is-open { display:block; }
     .task-title { font-size:1rem; line-height:1.35; margin-right:auto; word-break:break-word; }
+    .task-percent { color:#cbd5e1; font-size:.9rem; min-width:48px; text-align:right; }
     .desc { color:#cbd5e1; margin:8px 0; white-space:pre-wrap; }
     .done { text-decoration:line-through; color:var(--muted); }
     .progress-wrap { display:flex; align-items:center; gap:10px; margin:8px 0; }
@@ -479,6 +480,7 @@ $csrfToken = $_SESSION['csrf_token'];
               <li class="task-item">
                 <div class="task-line">
                   <span class="task-title <?= !empty($task['done']) ? 'done' : ''; ?>"><?= htmlspecialchars((string) ($task['title'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></span>
+                  <span class="task-percent"><?= (int) ($task['progress'] ?? 0); ?>%</span>
                   <button class="ghost-btn accordion-toggle js-accordion-toggle" type="button" aria-expanded="false" title="Show details">▾</button>
                   <form method="get">
                     <?php if ($searchQuery !== ''): ?><input type="hidden" name="q" value="<?= htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
