@@ -13,7 +13,7 @@ Then open http://localhost:8000/login.php.
 ## Login credentials
 
 - Username: `p051xn1nja`
-- Password: `Pir231411@19781009`
+- Password: `...`
 
 ## Features
 
