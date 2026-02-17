@@ -131,6 +131,8 @@ document.addEventListener('DOMContentLoaded', function () {
   var newTaskSelected = document.getElementById('new-task-selected-files');
 
   if (newTaskInput && newTaskSelected && typeof DataTransfer !== 'undefined') {
+    var selectedFilesTransfer = new DataTransfer();
+
     var renderSelectedFiles = function () {
       newTaskSelected.innerHTML = '';
 
@@ -159,7 +161,26 @@ document.addEventListener('DOMContentLoaded', function () {
       }
     };
 
-    newTaskInput.addEventListener('change', renderSelectedFiles, false);
+    var syncInputFiles = function () {
+      newTaskInput.files = selectedFilesTransfer.files;
+      renderSelectedFiles();
+    };
+
+    newTaskInput.addEventListener('change', function () {
+      if (!newTaskInput.files || newTaskInput.files.length === 0) {
+        return;
+      }
+
+      for (var addIndex = 0; addIndex < newTaskInput.files.length; addIndex += 1) {
+        if (selectedFilesTransfer.files.length >= 10) {
+          break;
+        }
+
+        selectedFilesTransfer.items.add(newTaskInput.files[addIndex]);
+      }
+
+      syncInputFiles();
+    }, false);
 
     newTaskSelected.addEventListener('click', function (event) {
       var target = event.target;
@@ -178,14 +199,14 @@ document.addEventListener('DOMContentLoaded', function () {
       }
 
       var dt = new DataTransfer();
-      for (var i = 0; i < newTaskInput.files.length; i += 1) {
+      for (var i = 0; i < selectedFilesTransfer.files.length; i += 1) {
         if (i !== removeIndex) {
-          dt.items.add(newTaskInput.files[i]);
+          dt.items.add(selectedFilesTransfer.files[i]);
         }
       }
 
-      newTaskInput.files = dt.files;
-      renderSelectedFiles();
+      selectedFilesTransfer = dt;
+      syncInputFiles();
       event.preventDefault();
     }, false);
 
