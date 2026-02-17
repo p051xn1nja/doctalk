@@ -1144,8 +1144,9 @@ $csrfToken = $_SESSION['csrf_token'];
     .slider-form input[type="range"] { flex:1; }
     .empty { color:var(--muted); text-align:center; padding:22px; border:1px dashed #334155; border-radius:12px; background:rgba(15,23,42,.45); }
 
-    .pager { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-bottom:14px; }
-    .pager form { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+    .pager { display:flex; flex-direction:column; align-items:flex-start; gap:8px; margin-bottom:14px; }
+    .pager-summary { font-weight:500; color:#cbd5e1; }
+    .pager form { display:flex; align-items:center; gap:8px; flex-wrap:nowrap; }
     .pager input[type="number"], .pager select { background:#0b1220; color:var(--text); border:1px solid #334155; border-radius:10px; padding:8px 10px; }
 
     .task-attachment { margin-top:8px; color:#cbd5e1; font-size:.9rem; }
@@ -1164,6 +1165,7 @@ $csrfToken = $_SESSION['csrf_token'];
       .app { padding:14px; border-radius:16px; }
       .top-bar { position:static; margin:0 0 12px; padding:0; background:transparent; backdrop-filter:none; }
       .pager form, .task-form-row { width:100%; }
+      .pager form { flex-wrap:wrap; }
       .task-line { align-items:flex-start; }
       .title-group { width:100%; }
     }
@@ -1213,6 +1215,7 @@ $csrfToken = $_SESSION['csrf_token'];
     </form>
 
     <div class="pager">
+      <span class="pager-summary">Page <?= $page; ?> of <?= $totalPages; ?> (<?= $totalFiltered; ?> task<?= $totalFiltered === 1 ? '' : 's'; ?>)</span>
       <form method="get" autocomplete="off">
         <?php if ($searchQuery !== ''): ?><input type="hidden" name="q" value="<?= htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
         <?php if ($categoryFilter !== ''): ?><input type="hidden" name="category" value="<?= htmlspecialchars($categoryFilter, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
@@ -1225,16 +1228,15 @@ $csrfToken = $_SESSION['csrf_token'];
           <?php endforeach; ?>
           <option value="custom" <?= $isCustomPerPage ? 'selected' : ''; ?>>Custom</option>
         </select>
-        <input type="number" name="per_page_custom" min="1" max="<?= MAX_PER_PAGE; ?>" placeholder="Custom" value="<?= $isCustomPerPage ? (int) $perPage : ''; ?>">
+        <input type="number" name="per_page_custom" min="1" max="<?= MAX_PER_PAGE; ?>" placeholder="Custom" value="<?= $isCustomPerPage ? (int) $perPage : 50; ?>">
         <button class="ghost-btn" type="submit">Apply</button>
+        <?php if ($page > 1): ?>
+          <a class="ghost-btn" style="text-decoration:none;" href="<?= htmlspecialchars(buildIndexUrl($searchQuery, $page - 1, $perPage, '', $categoryFilter, $fromDate, $toDate), ENT_QUOTES, 'UTF-8'); ?>">Prev</a>
+        <?php endif; ?>
+        <?php if ($page < $totalPages): ?>
+          <a class="ghost-btn" style="text-decoration:none;" href="<?= htmlspecialchars(buildIndexUrl($searchQuery, $page + 1, $perPage, '', $categoryFilter, $fromDate, $toDate), ENT_QUOTES, 'UTF-8'); ?>">Next</a>
+        <?php endif; ?>
       </form>
-      <span>Page <?= $page; ?> of <?= $totalPages; ?> (<?= $totalFiltered; ?> task<?= $totalFiltered === 1 ? '' : 's'; ?>)</span>
-      <?php if ($page > 1): ?>
-        <a class="ghost-btn" style="text-decoration:none;" href="<?= htmlspecialchars(buildIndexUrl($searchQuery, $page - 1, $perPage, '', $categoryFilter, $fromDate, $toDate), ENT_QUOTES, 'UTF-8'); ?>">Prev</a>
-      <?php endif; ?>
-      <?php if ($page < $totalPages): ?>
-        <a class="ghost-btn" style="text-decoration:none;" href="<?= htmlspecialchars(buildIndexUrl($searchQuery, $page + 1, $perPage, '', $categoryFilter, $fromDate, $toDate), ENT_QUOTES, 'UTF-8'); ?>">Next</a>
-      <?php endif; ?>
     </div>
 
     <form class="task-form" method="post" autocomplete="off" enctype="multipart/form-data">
