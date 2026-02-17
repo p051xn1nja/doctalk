@@ -416,6 +416,19 @@ function buildIndexUrl(string $searchQuery, int $page, int $perPage, string $edi
     return $url;
 }
 
+
+function deleteStoredAttachment(string $stored): void
+{
+    if (preg_match('/^[a-f0-9]{24}_[a-f0-9]{12}\.[a-z0-9]+$/', $stored) !== 1) {
+        return;
+    }
+
+    $path = UPLOAD_DIR . '/' . $stored;
+    if (is_file($path)) {
+        @unlink($path);
+    }
+}
+
 function storeUploadedAttachment(array $file, string $taskId): ?array
 {
     if (!isset($file['error']) || (int) $file['error'] === UPLOAD_ERR_NO_FILE) {
@@ -651,6 +664,7 @@ if ($method === 'POST') {
             $description = sanitizeTaskDescription((string) ($_POST['description'] ?? ''));
             $categoryId = (string) ($_POST['category_id'] ?? '');
             $selectedCategory = preg_match('/^[a-f0-9]{24}$/', $categoryId) === 1 ? findCategoryById($categories, $categoryId) : null;
+            $removeAttachment = isset($_POST['delete_attachment']) && (string) $_POST['delete_attachment'] === '1';
             $progress = isset($_POST['progress']) ? (int) $_POST['progress'] : null;
             if ($progress !== null) {
                 $progress = max(0, min(100, $progress));
@@ -658,108 +672,47 @@ if ($method === 'POST') {
 
             if (preg_match('/^[a-f0-9]{24}$/', $id) === 1 && $title !== '') {
                 foreach ($tasks as &$task) {
-                    if (($task['id'] ?? '') === $id) {
-                        $task['title'] = $title;
-                        $task['description'] = $description;
-                        $task['category_id'] = $selectedCategory['id'] ?? '';
-                        $task['category_name'] = $selectedCategory['name'] ?? '';
-                        $task['category_color'] = $selectedCategory['color'] ?? DEFAULT_CATEGORY_COLOR;
-                        if ($progress !== null) {
-                            $task['progress'] = $progress;
-                            $task['done'] = $progress >= 100;
-                        }
-                        break;
+                    if (($task['id'] ?? '') !== $id) {
+                        continue;
                     }
-                }
-                unset($task);
-                saveTasks($tasks);
-            }
 
-            redirectToIndex($searchQuery, $page, $perPage, '', $categoryFilter, $fromDate, $toDate);
-        }
+                    $task['title'] = $title;
+                    $task['description'] = $description;
+                    $task['category_id'] = $selectedCategory['id'] ?? '';
+                    $task['category_name'] = $selectedCategory['name'] ?? '';
+                    $task['category_color'] = $selectedCategory['color'] ?? DEFAULT_CATEGORY_COLOR;
 
-
-        if ($action === 'addCategory') {
-            $categoryName = sanitizeCategoryName((string) ($_POST['category_name'] ?? ''));
-            $categoryColor = sanitizeCategoryColor((string) ($_POST['category_color'] ?? ''));
-
-            if ($categoryName !== '') {
-                $exists = false;
-                foreach ($categories as $category) {
-                    if (lowerSafe((string) $category['name']) === lowerSafe($categoryName)) {
-                        $exists = true;
-                        break;
+                    if ($progress !== null) {
+                        $task['progress'] = $progress;
+                        $task['done'] = $progress >= 100;
                     }
-                }
 
-                if (!$exists) {
-                    $categories[] = [
-                        'id' => bin2hex(random_bytes(12)),
-                        'name' => $categoryName,
-                        'color' => $categoryColor,
-                    ];
-                    saveCategories($categories);
-                }
-            }
+                    $currentAttachment = is_array($task['attachment'] ?? null) ? $task['attachment'] : null;
+                    if ($removeAttachment && $currentAttachment !== null) {
+                        deleteStoredAttachment((string) ($currentAttachment['stored'] ?? ''));
+                        $task['attachment'] = null;
+                        $currentAttachment = null;
+                    }
 
-            redirectToIndex($searchQuery, $page, $perPage, '', $categoryFilter, $fromDate, $toDate);
-        }
-
-        if ($action === 'editCategory') {
-            $categoryId = (string) ($_POST['category_id'] ?? '');
-            $categoryName = sanitizeCategoryName((string) ($_POST['category_name'] ?? ''));
-            $categoryColor = sanitizeCategoryColor((string) ($_POST['category_color'] ?? ''));
-
-            if (preg_match('/^[a-f0-9]{24}$/', $categoryId) === 1 && $categoryName !== '') {
-                foreach ($categories as &$category) {
-                    if (($category['id'] ?? '') === $categoryId) {
-                        $oldName = (string) ($category['name'] ?? '');
-                        $category['name'] = $categoryName;
-                        $category['color'] = $categoryColor;
-
-                        foreach ($tasks as &$task) {
-                            if (($task['category_id'] ?? '') === $categoryId || lowerSafe((string) ($task['category_name'] ?? '')) === lowerSafe($oldName)) {
-                                $task['category_id'] = $categoryId;
-                                $task['category_name'] = $categoryName;
-                                $task['category_color'] = $categoryColor;
+                    if (isset($_FILES['attachment']) && is_array($_FILES['attachment'])) {
+                        $newAttachment = storeUploadedAttachment($_FILES['attachment'], (string) ($task['id'] ?? $id));
+                        if ($newAttachment !== null) {
+                            if ($currentAttachment !== null) {
+                                deleteStoredAttachment((string) ($currentAttachment['stored'] ?? ''));
                             }
+                            $task['attachment'] = $newAttachment;
                         }
-                        unset($task);
-                        break;
                     }
-                }
-                unset($category);
-                saveCategories($categories);
-                saveTasks($tasks);
-            }
 
-            redirectToIndex($searchQuery, $page, $perPage, '', $categoryFilter, $fromDate, $toDate);
-        }
-
-        if ($action === 'deleteCategory') {
-            $categoryId = (string) ($_POST['category_id'] ?? '');
-            if (preg_match('/^[a-f0-9]{24}$/', $categoryId) === 1) {
-                $categories = array_values(array_filter($categories, static fn(array $category): bool => ($category['id'] ?? '') !== $categoryId));
-
-                foreach ($tasks as &$task) {
-                    if (($task['category_id'] ?? '') === $categoryId) {
-                        $task['category_id'] = '';
-                        $task['category_name'] = '';
-                        $task['category_color'] = DEFAULT_CATEGORY_COLOR;
-                    }
+                    break;
                 }
                 unset($task);
-
-                if ($categoryFilter === $categoryId) {
-                    $categoryFilter = '';
-                }
-
-                saveCategories($categories);
                 saveTasks($tasks);
             }
 
             redirectToIndex($searchQuery, $page, $perPage, '', $categoryFilter, $fromDate, $toDate);
         }
+
 
         if ($action === 'delete') {
             $id = (string) ($_POST['id'] ?? '');
@@ -767,11 +720,8 @@ if ($method === 'POST') {
                 foreach ($tasks as $task) {
                     if (($task['id'] ?? '') === $id && is_array($task['attachment'] ?? null)) {
                         $stored = (string) ($task['attachment']['stored'] ?? '');
-                        if ($stored !== '' && preg_match('/^[a-f0-9]{24}_[a-f0-9]{12}\.[a-z0-9]+$/', $stored) === 1) {
-                            $path = UPLOAD_DIR . '/' . $stored;
-                            if (is_file($path)) {
-                                @unlink($path);
-                            }
+                        if ($stored !== '') {
+                            deleteStoredAttachment($stored);
                         }
                     }
                 }
@@ -853,11 +803,13 @@ $csrfToken = $_SESSION['csrf_token'];
     .meta { color:var(--muted); margin-bottom:12px; }
     .error { border:1px solid #92400e; background:#451a03; color:#fde68a; border-radius:10px; padding:10px 12px; margin-bottom:14px; }
     .search-row { display:flex; gap:10px; margin-bottom:12px; flex-wrap:wrap; }
-    .search-row input, .search-row button, .task-form input, .task-form textarea, .task-form button { font: inherit; }
+    .search-row input, .search-row button, .search-row select, .task-form input, .task-form select, .task-form textarea, .task-form button { font: inherit; }
     .search-row input { flex:1; min-width:220px; }
     .task-form { display:grid; gap:10px; margin-bottom:20px; }
     .task-form-row { display:flex; gap:10px; }
-    input[type="text"], textarea { width:100%; background:#0b1220; color:var(--text); border:1px solid #334155; border-radius:12px; padding:12px 14px; }
+    input[type="text"], input[type="date"], select, input[type="file"], textarea { width:100%; background:#0b1220; color:var(--text); border:1px solid #334155; border-radius:12px; padding:10px 12px; }
+    input[type="file"]::file-selector-button { background:#1e293b; color:var(--text); border:0; border-radius:8px; padding:8px 10px; margin-right:10px; }
+    input[type="color"] { width:44px; height:40px; border:1px solid #334155; border-radius:10px; background:#0b1220; padding:4px; }
     textarea { min-height:88px; resize:vertical; }
     button { border:0; cursor:pointer; }
     .add-btn, .ghost-btn, .danger-btn, .logout-btn {
@@ -907,11 +859,14 @@ $csrfToken = $_SESSION['csrf_token'];
   <main class="app">
     <div class="top-bar">
       <h1>TaskFlow</h1>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <a class="ghost-btn" href="<?= htmlspecialchars(appPath('categories.php'), ENT_QUOTES, 'UTF-8'); ?>" style="text-decoration:none;">Categories</a>
       <form method="post">
         <input type="hidden" name="action" value="logout">
         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
         <button class="logout-btn" type="submit">Log out</button>
       </form>
+      </div>
     </div>
 
     <p class="meta">Completed <?= $completedCount; ?> / <?= $totalCount; ?> tasks.</p>
@@ -961,46 +916,6 @@ $csrfToken = $_SESSION['csrf_token'];
         <a class="ghost-btn" style="text-decoration:none;" href="<?= htmlspecialchars(buildIndexUrl($searchQuery, $page + 1, $perPage, '', $categoryFilter, $fromDate, $toDate), ENT_QUOTES, 'UTF-8'); ?>">Next</a>
       <?php endif; ?>
     </div>
-
-    <section class="task-form" style="margin-bottom:16px;">
-      <h2 style="margin:0 0 8px;font-size:1rem;color:#cbd5e1;">Manage categories</h2>
-      <form method="post" autocomplete="off">
-        <input type="hidden" name="action" value="addCategory">
-        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
-        <input type="hidden" name="page" value="<?= (int) $page; ?>">
-        <input type="hidden" name="per_page" value="<?= (int) $perPage; ?>">
-        <?php if ($searchQuery !== ''): ?><input type="hidden" name="q" value="<?= htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
-        <?php if ($categoryFilter !== ''): ?><input type="hidden" name="category" value="<?= htmlspecialchars($categoryFilter, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
-        <?php if ($fromDate !== ''): ?><input type="hidden" name="from" value="<?= htmlspecialchars($fromDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
-        <?php if ($toDate !== ''): ?><input type="hidden" name="to" value="<?= htmlspecialchars($toDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
-        <div class="task-form-row">
-          <input name="category_name" type="text" maxlength="40" placeholder="New category" required>
-          <input name="category_color" type="color" value="<?= DEFAULT_CATEGORY_COLOR; ?>" title="Category color">
-          <button class="add-btn" type="submit">Add category</button>
-        </div>
-      </form>
-
-      <?php if (count($categoryOptions) > 0): ?>
-        <?php foreach ($categoryOptions as $category): ?>
-          <form method="post" autocomplete="off" style="margin-top:8px;">
-            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
-            <input type="hidden" name="category_id" value="<?= htmlspecialchars((string) $category['id'], ENT_QUOTES, 'UTF-8'); ?>">
-            <input type="hidden" name="page" value="<?= (int) $page; ?>">
-            <input type="hidden" name="per_page" value="<?= (int) $perPage; ?>">
-            <?php if ($searchQuery !== ''): ?><input type="hidden" name="q" value="<?= htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
-            <?php if ($categoryFilter !== ''): ?><input type="hidden" name="category" value="<?= htmlspecialchars($categoryFilter, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
-            <?php if ($fromDate !== ''): ?><input type="hidden" name="from" value="<?= htmlspecialchars($fromDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
-            <?php if ($toDate !== ''): ?><input type="hidden" name="to" value="<?= htmlspecialchars($toDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
-            <div class="task-form-row">
-              <input name="category_name" type="text" maxlength="40" value="<?= htmlspecialchars((string) $category['name'], ENT_QUOTES, 'UTF-8'); ?>" required>
-              <input name="category_color" type="color" value="<?= htmlspecialchars((string) $category['color'], ENT_QUOTES, 'UTF-8'); ?>" title="Category color">
-              <button class="ghost-btn" type="submit" name="action" value="editCategory">Save</button>
-              <button class="danger-btn" type="submit" name="action" value="deleteCategory">Delete</button>
-            </div>
-          </form>
-        <?php endforeach; ?>
-      <?php endif; ?>
-    </section>
 
     <form class="task-form" method="post" autocomplete="off" enctype="multipart/form-data">
       <input type="hidden" name="action" value="add">
@@ -1088,7 +1003,7 @@ $csrfToken = $_SESSION['csrf_token'];
                 </div>
 
                 <?php if ($isEditing): ?>
-                  <form class="task-form js-edit-form" method="post" autocomplete="off" data-cancel-url="<?= htmlspecialchars(buildIndexUrl($searchQuery, $page, $perPage, '', $categoryFilter, $fromDate, $toDate), ENT_QUOTES, 'UTF-8'); ?>">
+                  <form class="task-form js-edit-form" method="post" autocomplete="off" enctype="multipart/form-data" data-cancel-url="<?= htmlspecialchars(buildIndexUrl($searchQuery, $page, $perPage, '', $categoryFilter, $fromDate, $toDate), ENT_QUOTES, 'UTF-8'); ?>">
                     <input type="hidden" name="action" value="editTask">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
                     <input type="hidden" name="id" value="<?= htmlspecialchars((string) ($task['id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
@@ -1115,7 +1030,9 @@ $csrfToken = $_SESSION['csrf_token'];
                       <?php endif; ?>
                       <?php if (is_array($task['attachment'] ?? null)): ?>
                         <div class="task-attachment">Attachment: <a href="<?= htmlspecialchars(buildDownloadUrl($searchQuery, $page, $perPage, (string) $task['attachment']['stored'], $categoryFilter, $fromDate, $toDate), ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars((string) $task['attachment']['name'], ENT_QUOTES, 'UTF-8'); ?></a></div>
+                        <label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" name="delete_attachment" value="1"> Remove current file</label>
                       <?php endif; ?>
+                      <input name="attachment" type="file" accept=".docx,.pdf,.txt,.md,.xlsx,.xls,.ppt,.pptx,.zip,.php,.js,.css,.html,.py">
                       <div class="slider-form">
                         <input class="js-progress-slider" type="range" name="progress" min="0" max="100" step="1" value="<?= (int) ($task['progress'] ?? 0); ?>">
                         <strong class="js-progress-value"><?= (int) ($task['progress'] ?? 0); ?>%</strong>
