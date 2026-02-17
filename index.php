@@ -12,6 +12,7 @@ const MAX_PER_PAGE = 1000;
 const UPLOAD_DIR = DATA_DIR . '/uploads';
 const DEFAULT_CATEGORY_COLOR = '#64748b';
 const MAX_TASK_FILES = 10;
+const MAX_UPLOAD_FILE_SIZE_BYTES = 26214400; // 25 MB per file
 const SESSION_LIFETIME = 86400; // 24 hours
 
 configureSession();
@@ -549,6 +550,9 @@ function storeUploadedAttachments(array $fileInput, string $taskId, int $slotsAv
         if ($error === UPLOAD_ERR_NO_FILE) {
             continue;
         }
+        if ($error === UPLOAD_ERR_INI_SIZE || $error === UPLOAD_ERR_FORM_SIZE) {
+            throw new RuntimeException('One of the uploaded files exceeds the 25 MB limit.');
+        }
         if ($error !== UPLOAD_ERR_OK) {
             throw new RuntimeException('One of the uploaded files failed to upload.');
         }
@@ -556,9 +560,14 @@ function storeUploadedAttachments(array $fileInput, string $taskId, int $slotsAv
         $tmp = (string) ($tmpNames[$i] ?? '');
         $originalName = basename((string) ($names[$i] ?? ''));
         $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+        $fileSize = is_array($sizes) ? (int) ($sizes[$i] ?? 0) : 0;
 
         if ($tmp === '' || $originalName === '' || !in_array($extension, $allowedExtensions, true)) {
             throw new RuntimeException('One of the uploaded files has an unsupported type.');
+        }
+
+        if ($fileSize <= 0 || $fileSize > MAX_UPLOAD_FILE_SIZE_BYTES) {
+            throw new RuntimeException('One of the uploaded files exceeds the 25 MB limit.');
         }
 
         $storedName = $taskId . '_' . bin2hex(random_bytes(6)) . '.' . $extension;
@@ -573,7 +582,7 @@ function storeUploadedAttachments(array $fileInput, string $taskId, int $slotsAv
         $storedFiles[] = [
             'name' => $originalName,
             'stored' => $storedName,
-            'size' => is_array($sizes) ? (int) ($sizes[$i] ?? 0) : 0,
+            'size' => $fileSize,
         ];
     }
 
@@ -1291,7 +1300,7 @@ $csrfToken = $_SESSION['csrf_token'];
       </div>
       <input id="new-task-attachments" class="js-new-task-attachments" name="attachment[]" type="file" multiple accept=".docx,.pdf,.txt,.md,.xlsx,.xls,.ppt,.pptx,.zip,.php,.js,.css,.html,.py" style="display:none;">
       <div id="new-task-selected-files" class="selected-files" aria-live="polite"></div>
-      <small style="color:#94a3b8;">Optional: upload up to 10 files.</small>
+      <small style="color:#94a3b8;">Optional: upload up to 10 files, each up to 25 MB.</small>
       <div class="task-form-row"><button class="add-btn" type="submit">Add Task</button></div>
     </form>
 
