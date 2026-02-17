@@ -1081,6 +1081,8 @@ $csrfToken = $_SESSION['csrf_token'];
     .search-row { display:flex; gap:10px; margin-bottom:12px; flex-wrap:wrap; }
     .search-row input, .search-row button, .search-row select, .task-form input, .task-form select, .task-form textarea, .task-form button { font: inherit; }
     .search-row input { flex:1; min-width:220px; }
+    .search-filter-pair { display:flex; gap:10px; align-items:center; flex:0 0 auto; min-width:360px; }
+    .search-filter-pair select { flex:1; min-width:0; }
     .date-field { position:relative; min-width:170px; flex:1; }
     .date-field input[type="date"] { padding-right:42px; }
     .date-open-btn { position:absolute; right:7px; top:50%; transform:translateY(-50%); border:0; background:transparent; color:#e2e8f0; cursor:pointer; font-size:18px; line-height:1; padding:2px 4px; }
@@ -1181,6 +1183,7 @@ $csrfToken = $_SESSION['csrf_token'];
       .top-bar { position:static; margin:0 0 12px; padding:0; background:transparent; backdrop-filter:none; }
       .pager form, .task-form-row { width:100%; }
       .pager form { flex-wrap:wrap; }
+      .search-filter-pair { min-width:100%; }
       .task-line { align-items:flex-start; }
       .title-group { width:100%; }
     }
@@ -1208,17 +1211,19 @@ $csrfToken = $_SESSION['csrf_token'];
 
     <form class="search-row" method="get" autocomplete="off">
       <input name="q" type="text" value="<?= htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8'); ?>" placeholder="Search by title or description">
-      <select name="category">
-        <option value="">All categories</option>
-        <?php foreach ($categoryOptions as $category): ?>
-          <option value="<?= htmlspecialchars((string) $category['id'], ENT_QUOTES, 'UTF-8'); ?>" <?= $categoryFilter === (string) $category['id'] ? 'selected' : ''; ?>><?= htmlspecialchars((string) $category['name'], ENT_QUOTES, 'UTF-8'); ?></option>
-        <?php endforeach; ?>
-      </select>
-      <select name="status">
-        <option value="" <?= $statusFilter === '' ? 'selected' : ''; ?>>All statuses</option>
-        <option value="in_progress" <?= $statusFilter === 'in_progress' ? 'selected' : ''; ?>>In progress</option>
-        <option value="completed" <?= $statusFilter === 'completed' ? 'selected' : ''; ?>>Completed</option>
-      </select>
+      <div class="search-filter-pair">
+        <select name="category">
+          <option value="">All categories</option>
+          <?php foreach ($categoryOptions as $category): ?>
+            <option value="<?= htmlspecialchars((string) $category['id'], ENT_QUOTES, 'UTF-8'); ?>" <?= $categoryFilter === (string) $category['id'] ? 'selected' : ''; ?>><?= htmlspecialchars((string) $category['name'], ENT_QUOTES, 'UTF-8'); ?></option>
+          <?php endforeach; ?>
+        </select>
+        <select name="status">
+          <option value="" <?= $statusFilter === '' ? 'selected' : ''; ?>>All statuses</option>
+          <option value="in_progress" <?= $statusFilter === 'in_progress' ? 'selected' : ''; ?>>In progress</option>
+          <option value="completed" <?= $statusFilter === 'completed' ? 'selected' : ''; ?>>Completed</option>
+        </select>
+      </div>
       <label class="date-field">
         <input class="js-date-picker" name="from" type="date" value="<?= htmlspecialchars($fromDate, ENT_QUOTES, 'UTF-8'); ?>">
         <button class="js-date-open date-open-btn" type="button" aria-label="Open from date calendar">📅</button>
