@@ -207,21 +207,22 @@ document.addEventListener('DOMContentLoaded', function () {
   }, false);
 
 
-  var newTaskInput = document.querySelector('.js-new-task-attachments');
-  var newTaskSelected = document.getElementById('new-task-selected-files');
+  function setupAttachmentPicker(input, selectedContainer, addButton, maxFiles) {
+    if (!input || !selectedContainer || typeof DataTransfer === 'undefined') {
+      return;
+    }
 
-  if (newTaskInput && newTaskSelected && typeof DataTransfer !== 'undefined') {
     var selectedFilesTransfer = new DataTransfer();
 
     var renderSelectedFiles = function () {
-      newTaskSelected.innerHTML = '';
+      selectedContainer.innerHTML = '';
 
-      if (!newTaskInput.files || newTaskInput.files.length === 0) {
+      if (!input.files || input.files.length === 0) {
         return;
       }
 
-      for (var fileIndex = 0; fileIndex < newTaskInput.files.length; fileIndex += 1) {
-        var file = newTaskInput.files[fileIndex];
+      for (var fileIndex = 0; fileIndex < input.files.length; fileIndex += 1) {
+        var file = input.files[fileIndex];
         var row = document.createElement('div');
         row.className = 'selected-file';
 
@@ -232,49 +233,56 @@ document.addEventListener('DOMContentLoaded', function () {
         removeButton.type = 'button';
         removeButton.className = 'danger-btn';
         removeButton.style.padding = '6px 10px';
-        removeButton.setAttribute('data-remove-new-file', String(fileIndex));
+        removeButton.setAttribute('data-remove-selected-file', String(fileIndex));
         removeButton.textContent = 'Remove';
 
         row.appendChild(nameSpan);
         row.appendChild(removeButton);
-        newTaskSelected.appendChild(row);
+        selectedContainer.appendChild(row);
       }
     };
 
     var syncInputFiles = function () {
-      newTaskInput.files = selectedFilesTransfer.files;
+      input.files = selectedFilesTransfer.files;
       renderSelectedFiles();
     };
 
-    newTaskInput.addEventListener('change', function () {
-      if (!newTaskInput.files || newTaskInput.files.length === 0) {
+    if (addButton) {
+      addButton.addEventListener('click', function (event) {
+        input.click();
+        event.preventDefault();
+      }, false);
+    }
+
+    input.addEventListener('change', function () {
+      if (!input.files || input.files.length === 0) {
         return;
       }
 
-      for (var addIndex = 0; addIndex < newTaskInput.files.length; addIndex += 1) {
-        if (selectedFilesTransfer.files.length >= 10) {
+      for (var addIndex = 0; addIndex < input.files.length; addIndex += 1) {
+        if (selectedFilesTransfer.files.length >= maxFiles) {
           break;
         }
 
-        selectedFilesTransfer.items.add(newTaskInput.files[addIndex]);
+        selectedFilesTransfer.items.add(input.files[addIndex]);
       }
 
       syncInputFiles();
     }, false);
 
-    newTaskSelected.addEventListener('click', function (event) {
+    selectedContainer.addEventListener('click', function (event) {
       var target = event.target;
       if (!target || !target.getAttribute) {
         return;
       }
 
-      var indexRaw = target.getAttribute('data-remove-new-file');
+      var indexRaw = target.getAttribute('data-remove-selected-file');
       if (indexRaw === null) {
         return;
       }
 
       var removeIndex = Number(indexRaw);
-      if (!newTaskInput.files || isNaN(removeIndex)) {
+      if (!input.files || isNaN(removeIndex)) {
         return;
       }
 
@@ -291,6 +299,19 @@ document.addEventListener('DOMContentLoaded', function () {
     }, false);
 
     renderSelectedFiles();
+  }
+
+  var newTaskInput = document.querySelector('.js-new-task-attachments');
+  var newTaskSelected = document.getElementById('new-task-selected-files');
+  setupAttachmentPicker(newTaskInput, newTaskSelected, null, 10);
+
+  var editForms = document.querySelectorAll('.js-edit-form');
+  for (var editIndex = 0; editIndex < editForms.length; editIndex += 1) {
+    var editForm = editForms[editIndex];
+    var editInput = editForm.querySelector('.js-edit-task-attachments');
+    var editSelected = editForm.querySelector('.js-edit-selected-files');
+    var editAddButton = editForm.querySelector('.js-edit-add-files');
+    setupAttachmentPicker(editInput, editSelected, editAddButton, 10);
   }
 
   document.addEventListener('keydown', function (event) {

@@ -1239,7 +1239,11 @@ $csrfToken = $_SESSION['csrf_token'];
                           </label>
                         <?php endforeach; ?>
                       <?php endif; ?>
-                      <input name="attachment[]" type="file" multiple accept=".docx,.pdf,.txt,.md,.xlsx,.xls,.ppt,.pptx,.zip,.php,.js,.css,.html,.py">
+                      <div class="task-form-row" style="align-items:center;">
+                        <button class="ghost-btn js-edit-add-files" type="button">+ Add files</button>
+                      </div>
+                      <input class="js-edit-task-attachments" name="attachment[]" type="file" multiple accept=".docx,.pdf,.txt,.md,.xlsx,.xls,.ppt,.pptx,.zip,.php,.js,.css,.html,.py" style="display:none;">
+                      <div class="selected-files js-edit-selected-files" aria-live="polite"></div>
                       <div class="slider-form">
                         <input class="js-progress-slider" type="range" name="progress" min="0" max="100" step="1" value="<?= (int) ($task['progress'] ?? 0); ?>">
                         <strong class="js-progress-value"><?= (int) ($task['progress'] ?? 0); ?>%</strong>
