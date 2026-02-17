@@ -1083,6 +1083,7 @@ $csrfToken = $_SESSION['csrf_token'];
     .search-row input { flex:1; min-width:220px; }
     .search-filter-pair { display:flex; gap:10px; align-items:center; flex:0 0 auto; min-width:360px; }
     .search-filter-pair select { flex:1; min-width:0; }
+    .search-row-break { flex-basis:100%; height:0; }
     .date-field { position:relative; min-width:170px; flex:1; }
     .date-field input[type="date"] { padding-right:42px; }
     .date-open-btn { position:absolute; right:7px; top:50%; transform:translateY(-50%); border:0; background:transparent; color:#e2e8f0; cursor:pointer; font-size:18px; line-height:1; padding:2px 4px; }
@@ -1183,7 +1184,6 @@ $csrfToken = $_SESSION['csrf_token'];
       .top-bar { position:static; margin:0 0 12px; padding:0; background:transparent; backdrop-filter:none; }
       .pager form, .task-form-row { width:100%; }
       .pager form { flex-wrap:wrap; }
-      .search-filter-pair { min-width:100%; }
       .task-line { align-items:flex-start; }
       .title-group { width:100%; }
     }
@@ -1224,6 +1224,7 @@ $csrfToken = $_SESSION['csrf_token'];
           <option value="completed" <?= $statusFilter === 'completed' ? 'selected' : ''; ?>>Completed</option>
         </select>
       </div>
+      <span class="search-row-break" aria-hidden="true"></span>
       <label class="date-field">
         <input class="js-date-picker" name="from" type="date" value="<?= htmlspecialchars($fromDate, ENT_QUOTES, 'UTF-8'); ?>">
         <button class="js-date-open date-open-btn" type="button" aria-label="Open from date calendar">📅</button>
