@@ -20,8 +20,10 @@ Then open http://localhost:8000/login.php.
 - Login-gated access to the task app
 - Add tasks with title + description
 - Search tasks by title/description
-- Default grouping by day (based on creation date)
-- Adjustable per-task progress (slider + progress bar)
+- Default grouping by day (collapsed sections with expandable day arrows)
+- Adjustable per-task progress (single slider control with live percentage)
+- Pagination with per-page options (25/50/100/200/custom, default 50)
+- File attachment upload for new tasks (docx, pdf, txt, md, xlsx/xls, ppt/pptx, zip, php, js, css, html, py)
 - Edit individual tasks (title + description)
 - Mark tasks done / undone
 - Delete tasks

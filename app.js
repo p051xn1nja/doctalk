@@ -13,6 +13,20 @@ document.addEventListener('DOMContentLoaded', function () {
     el.className = el.className.replace(new RegExp('(^|\\s)' + className + '(?=\\s|$)', 'g'), ' ').replace(/\s+/g, ' ').replace(/^\s+|\s+$/g, '');
   }
 
+
+  function syncDayToggle(section) {
+    var toggle = section.querySelector('.js-day-toggle');
+    var list = section.querySelector('.js-day-tasks');
+
+    if (!toggle || !list) {
+      return;
+    }
+
+    var open = hasClass(list, 'is-open');
+    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    toggle.textContent = open ? 'Day ▴' : 'Day ▾';
+  }
+
   function syncToggle(item) {
     var toggle = item.querySelector('.js-details-toggle');
     var details = item.querySelector('.js-task-details');
@@ -24,6 +38,11 @@ document.addEventListener('DOMContentLoaded', function () {
     var open = hasClass(details, 'is-open');
     toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
     toggle.textContent = open ? 'Details ▴' : 'Details ▾';
+  }
+
+  var daySections = document.querySelectorAll('.day-group');
+  for (var d = 0; d < daySections.length; d += 1) {
+    syncDayToggle(daySections[d]);
   }
 
   var items = document.querySelectorAll('.task-item');
@@ -57,7 +76,33 @@ document.addEventListener('DOMContentLoaded', function () {
 
   document.addEventListener('click', function (event) {
     var target = event.target;
-    if (!target || !hasClass(target, 'js-details-toggle')) {
+    if (!target) {
+      return;
+    }
+
+    if (hasClass(target, 'js-day-toggle')) {
+      var section = target.closest('.day-group');
+      if (!section) {
+        return;
+      }
+
+      var dayTasks = section.querySelector('.js-day-tasks');
+      if (!dayTasks) {
+        return;
+      }
+
+      if (hasClass(dayTasks, 'is-open')) {
+        removeClass(dayTasks, 'is-open');
+      } else {
+        addClass(dayTasks, 'is-open');
+      }
+
+      syncDayToggle(section);
+      event.preventDefault();
+      return;
+    }
+
+    if (!hasClass(target, 'js-details-toggle')) {
       return;
     }
 
