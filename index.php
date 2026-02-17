@@ -961,6 +961,8 @@ $csrfToken = $_SESSION['csrf_token'];
     .pager input[type="number"], .pager select { background:#0b1220; color:var(--text); border:1px solid #334155; border-radius:10px; padding:8px 10px; }
     .task-attachment { margin-top:8px; color:#cbd5e1; font-size:.9rem; }
     .task-attachment a { color:#7dd3fc; }
+    .selected-files { display:grid; gap:6px; margin-top:6px; }
+    .selected-file { display:flex; align-items:center; justify-content:space-between; gap:8px; background:#0b1220; border:1px solid #334155; border-radius:10px; padding:8px 10px; color:#cbd5e1; font-size:.9rem; }
   </style>
 </head>
 <body>
@@ -1044,7 +1046,8 @@ $csrfToken = $_SESSION['csrf_token'];
           <?php endforeach; ?>
         </select>
       </div>
-      <input name="attachment[]" type="file" multiple accept=".docx,.pdf,.txt,.md,.xlsx,.xls,.ppt,.pptx,.zip,.php,.js,.css,.html,.py">
+      <input id="new-task-attachments" class="js-new-task-attachments" name="attachment[]" type="file" multiple accept=".docx,.pdf,.txt,.md,.xlsx,.xls,.ppt,.pptx,.zip,.php,.js,.css,.html,.py">
+      <div id="new-task-selected-files" class="selected-files" aria-live="polite"></div>
       <small style="color:#94a3b8;">Optional: upload up to 10 files.</small>
       <div class="task-form-row"><button class="add-btn" type="submit">Add Task</button></div>
     </form>

@@ -126,6 +126,72 @@ document.addEventListener('DOMContentLoaded', function () {
     event.preventDefault();
   }, false);
 
+
+  var newTaskInput = document.querySelector('.js-new-task-attachments');
+  var newTaskSelected = document.getElementById('new-task-selected-files');
+
+  if (newTaskInput && newTaskSelected && typeof DataTransfer !== 'undefined') {
+    var renderSelectedFiles = function () {
+      newTaskSelected.innerHTML = '';
+
+      if (!newTaskInput.files || newTaskInput.files.length === 0) {
+        return;
+      }
+
+      for (var fileIndex = 0; fileIndex < newTaskInput.files.length; fileIndex += 1) {
+        var file = newTaskInput.files[fileIndex];
+        var row = document.createElement('div');
+        row.className = 'selected-file';
+
+        var nameSpan = document.createElement('span');
+        nameSpan.textContent = file.name;
+
+        var removeButton = document.createElement('button');
+        removeButton.type = 'button';
+        removeButton.className = 'danger-btn';
+        removeButton.style.padding = '6px 10px';
+        removeButton.setAttribute('data-remove-new-file', String(fileIndex));
+        removeButton.textContent = 'Remove';
+
+        row.appendChild(nameSpan);
+        row.appendChild(removeButton);
+        newTaskSelected.appendChild(row);
+      }
+    };
+
+    newTaskInput.addEventListener('change', renderSelectedFiles, false);
+
+    newTaskSelected.addEventListener('click', function (event) {
+      var target = event.target;
+      if (!target || !target.getAttribute) {
+        return;
+      }
+
+      var indexRaw = target.getAttribute('data-remove-new-file');
+      if (indexRaw === null) {
+        return;
+      }
+
+      var removeIndex = Number(indexRaw);
+      if (!newTaskInput.files || isNaN(removeIndex)) {
+        return;
+      }
+
+      var dt = new DataTransfer();
+      for (var i = 0; i < newTaskInput.files.length; i += 1) {
+        if (i !== removeIndex) {
+          dt.items.add(newTaskInput.files[i]);
+        }
+      }
+
+      newTaskInput.files = dt.files;
+      renderSelectedFiles();
+      event.preventDefault();
+    }, false);
+
+    renderSelectedFiles();
+  }
+
   document.addEventListener('keydown', function (event) {
     var key = event.key || event.keyCode;
     var isEscape = key === 'Escape' || key === 'Esc' || key === 27;
