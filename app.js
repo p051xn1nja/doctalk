@@ -303,7 +303,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
   var newTaskInput = document.querySelector('.js-new-task-attachments');
   var newTaskSelected = document.getElementById('new-task-selected-files');
-  setupAttachmentPicker(newTaskInput, newTaskSelected, null, 10);
+  var newTaskAddButton = document.querySelector('.js-new-task-add-files');
+  setupAttachmentPicker(newTaskInput, newTaskSelected, newTaskAddButton, 10);
 
   var editForms = document.querySelectorAll('.js-edit-form');
   for (var editIndex = 0; editIndex < editForms.length; editIndex += 1) {

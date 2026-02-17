@@ -1160,7 +1160,10 @@ $csrfToken = $_SESSION['csrf_token'];
           <?php endforeach; ?>
         </select>
       </div>
-      <input id="new-task-attachments" class="js-new-task-attachments" name="attachment[]" type="file" multiple accept=".docx,.pdf,.txt,.md,.xlsx,.xls,.ppt,.pptx,.zip,.php,.js,.css,.html,.py">
+      <div class="task-form-row" style="gap:8px; align-items:center;">
+        <button class="ghost-btn js-new-task-add-files" type="button">+ Add files</button>
+      </div>
+      <input id="new-task-attachments" class="js-new-task-attachments" name="attachment[]" type="file" multiple accept=".docx,.pdf,.txt,.md,.xlsx,.xls,.ppt,.pptx,.zip,.php,.js,.css,.html,.py" style="display:none;">
       <div id="new-task-selected-files" class="selected-files" aria-live="polite"></div>
       <small style="color:#94a3b8;">Optional: upload up to 10 files.</small>
       <div class="task-form-row"><button class="add-btn" type="submit">Add Task</button></div>
