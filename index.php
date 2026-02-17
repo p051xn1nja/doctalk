@@ -12,6 +12,7 @@ const MAX_PER_PAGE = 1000;
 const UPLOAD_DIR = DATA_DIR . '/uploads';
 const DEFAULT_CATEGORY_COLOR = '#64748b';
 const MAX_TASK_FILES = 10;
+const SESSION_LIFETIME = 86400; // 24 hours
 
 configureSession();
 session_start();
@@ -30,8 +31,10 @@ function configureSession(): void
 {
     $basePath = appBasePath();
 
+    ini_set('session.gc_maxlifetime', (string) SESSION_LIFETIME);
+
     session_set_cookie_params([
-        'lifetime' => 0,
+        'lifetime' => SESSION_LIFETIME,
         'path' => $basePath === '' ? '/' : $basePath . '/',
         'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
         'httponly' => true,
