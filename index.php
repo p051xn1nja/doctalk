@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 const DATA_DIR = __DIR__ . '/data';
 const DATA_FILE = DATA_DIR . '/tasks.json';
+const CATEGORY_FILE = DATA_DIR . '/categories.json';
 const MAX_TITLE_LENGTH = 120;
 const MAX_DESCRIPTION_LENGTH = 1000;
 const DEFAULT_PER_PAGE = 50;
@@ -99,6 +100,7 @@ function loadTasks(): array
         $done = !empty($task['done']);
         $progress = isset($task['progress']) ? (int) $task['progress'] : ($done ? 100 : 0);
         $createdAt = isset($task['created_at']) ? (string) $task['created_at'] : '';
+        $categoryId = isset($task['category_id']) && preg_match('/^[a-f0-9]{24}$/', (string) $task['category_id']) === 1 ? (string) $task['category_id'] : '';
         $categoryName = isset($task['category_name']) ? sanitizeCategoryName((string) $task['category_name']) : '';
         $categoryColor = isset($task['category_color']) ? sanitizeCategoryColor((string) $task['category_color']) : DEFAULT_CATEGORY_COLOR;
         $attachment = null;
@@ -130,6 +132,7 @@ function loadTasks(): array
             'done' => $done,
             'progress' => $progress,
             'created_at' => $createdAt,
+            'category_id' => $categoryId,
             'category_name' => $categoryName,
             'category_color' => $categoryColor,
             'attachment' => $attachment,
@@ -161,6 +164,80 @@ function saveTasks(array $tasks): void
     }
 
     @chmod(DATA_FILE, 0600);
+}
+
+function loadCategories(): array
+{
+    if (!file_exists(CATEGORY_FILE)) {
+        return [];
+    }
+
+    $json = file_get_contents(CATEGORY_FILE);
+    if ($json === false) {
+        return [];
+    }
+
+    $decoded = json_decode($json, true);
+    if (!is_array($decoded)) {
+        return [];
+    }
+
+    $categories = [];
+    foreach ($decoded as $category) {
+        if (!is_array($category)) {
+            continue;
+        }
+
+        $id = isset($category['id']) ? (string) $category['id'] : '';
+        $name = isset($category['name']) ? sanitizeCategoryName((string) $category['name']) : '';
+        $color = isset($category['color']) ? sanitizeCategoryColor((string) $category['color']) : DEFAULT_CATEGORY_COLOR;
+
+        if (preg_match('/^[a-f0-9]{24}$/', $id) !== 1 || $name === '') {
+            continue;
+        }
+
+        $categories[] = [
+            'id' => $id,
+            'name' => $name,
+            'color' => $color,
+        ];
+    }
+
+    return $categories;
+}
+
+function saveCategories(array $categories): void
+{
+    if (!is_dir(DATA_DIR) && !mkdir(DATA_DIR, 0700, true) && !is_dir(DATA_DIR)) {
+        throw new RuntimeException('Unable to create data directory.');
+    }
+
+    $payload = json_encode(array_values($categories), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+    $tmpFile = CATEGORY_FILE . '.tmp';
+    $bytes = file_put_contents($tmpFile, $payload, LOCK_EX);
+    if ($bytes === false) {
+        throw new RuntimeException('Unable to write temporary category file.');
+    }
+
+    @chmod($tmpFile, 0600);
+
+    if (!rename($tmpFile, CATEGORY_FILE)) {
+        @unlink($tmpFile);
+        throw new RuntimeException('Unable to persist category file.');
+    }
+
+    @chmod(CATEGORY_FILE, 0600);
+}
+
+function findCategoryById(array $categories, string $categoryId): ?array
+{
+    foreach ($categories as $category) {
+        if (($category['id'] ?? '') === $categoryId) {
+            return $category;
+        }
+    }
+
+    return null;
 }
 
 function redirectToIndex(string $search = '', int $page = 1, int $perPage = DEFAULT_PER_PAGE, string $editId = '', string $categoryFilter = '', string $fromDate = '', string $toDate = ''): void
@@ -386,9 +463,13 @@ if (!in_array($method, ['GET', 'POST'], true)) {
 }
 
 $tasks = loadTasks();
+$categories = loadCategories();
 $error = '';
 $searchQuery = trim((string) ($_GET['q'] ?? $_POST['q'] ?? ''));
-$categoryFilter = sanitizeCategoryName((string) ($_GET['category'] ?? $_POST['category'] ?? ''));
+$categoryFilter = (string) ($_GET['category'] ?? $_POST['category'] ?? '');
+if (preg_match('/^[a-f0-9]{24}$/', $categoryFilter) !== 1) {
+    $categoryFilter = '';
+}
 $fromDate = normalizeDateFilter((string) ($_GET['from'] ?? $_POST['from'] ?? ''));
 $toDate = normalizeDateFilter((string) ($_GET['to'] ?? $_POST['to'] ?? ''));
 $perPage = parsePerPage($_GET + $_POST);
@@ -418,6 +499,67 @@ if (isset($_GET['download']) && is_string($_GET['download'])) {
 }
 
 
+
+$categoryMapById = [];
+$categoryMapByName = [];
+foreach ($categories as $category) {
+    $categoryMapById[(string) $category['id']] = $category;
+    $categoryMapByName[lowerSafe((string) $category['name'])] = $category;
+}
+
+$categoriesChanged = false;
+$tasksChangedForCategory = false;
+foreach ($tasks as &$task) {
+    $taskCategoryId = isset($task['category_id']) ? (string) $task['category_id'] : '';
+    $taskCategoryName = sanitizeCategoryName((string) ($task['category_name'] ?? ''));
+    $taskCategoryColor = sanitizeCategoryColor((string) ($task['category_color'] ?? DEFAULT_CATEGORY_COLOR));
+
+    if ($taskCategoryId !== '' && isset($categoryMapById[$taskCategoryId])) {
+        $ref = $categoryMapById[$taskCategoryId];
+        if (($task['category_name'] ?? '') !== $ref['name'] || ($task['category_color'] ?? '') !== $ref['color']) {
+            $task['category_name'] = $ref['name'];
+            $task['category_color'] = $ref['color'];
+            $tasksChangedForCategory = true;
+        }
+        continue;
+    }
+
+    if ($taskCategoryName === '') {
+        if (($task['category_id'] ?? '') !== '') {
+            $task['category_id'] = '';
+            $tasksChangedForCategory = true;
+        }
+        continue;
+    }
+
+    $key = lowerSafe($taskCategoryName);
+    if (!isset($categoryMapByName[$key])) {
+        $newCategory = [
+            'id' => bin2hex(random_bytes(12)),
+            'name' => $taskCategoryName,
+            'color' => $taskCategoryColor,
+        ];
+        $categories[] = $newCategory;
+        $categoryMapById[$newCategory['id']] = $newCategory;
+        $categoryMapByName[$key] = $newCategory;
+        $categoriesChanged = true;
+    }
+
+    $resolved = $categoryMapByName[$key];
+    $task['category_id'] = $resolved['id'];
+    $task['category_name'] = $resolved['name'];
+    $task['category_color'] = $resolved['color'];
+    $tasksChangedForCategory = true;
+}
+unset($task);
+
+if ($categoriesChanged) {
+    saveCategories($categories);
+}
+if ($tasksChangedForCategory) {
+    saveTasks($tasks);
+}
+
 if ($method === 'POST') {
     $action = (string) ($_POST['action'] ?? '');
     $csrfToken = $_POST['csrf_token'] ?? null;
@@ -439,8 +581,8 @@ if ($method === 'POST') {
         if ($action === 'add') {
             $title = sanitizeTaskTitle((string) ($_POST['title'] ?? ''));
             $description = sanitizeTaskDescription((string) ($_POST['description'] ?? ''));
-            $categoryName = sanitizeCategoryName((string) ($_POST['category_name'] ?? ''));
-            $categoryColor = sanitizeCategoryColor((string) ($_POST['category_color'] ?? ''));
+            $categoryId = (string) ($_POST['category_id'] ?? '');
+            $selectedCategory = preg_match('/^[a-f0-9]{24}$/', $categoryId) === 1 ? findCategoryById($categories, $categoryId) : null;
 
             if ($title !== '') {
                 $taskId = bin2hex(random_bytes(12));
@@ -456,8 +598,9 @@ if ($method === 'POST') {
                     'done' => false,
                     'progress' => 0,
                     'created_at' => gmdate('c'),
-                    'category_name' => $categoryName,
-                    'category_color' => $categoryColor,
+                    'category_id' => $selectedCategory['id'] ?? '',
+                    'category_name' => $selectedCategory['name'] ?? '',
+                    'category_color' => $selectedCategory['color'] ?? DEFAULT_CATEGORY_COLOR,
                     'attachment' => $attachment,
                 ];
                 saveTasks($tasks);
@@ -506,8 +649,8 @@ if ($method === 'POST') {
             $id = (string) ($_POST['id'] ?? '');
             $title = sanitizeTaskTitle((string) ($_POST['title'] ?? ''));
             $description = sanitizeTaskDescription((string) ($_POST['description'] ?? ''));
-            $categoryName = sanitizeCategoryName((string) ($_POST['category_name'] ?? ''));
-            $categoryColor = sanitizeCategoryColor((string) ($_POST['category_color'] ?? ''));
+            $categoryId = (string) ($_POST['category_id'] ?? '');
+            $selectedCategory = preg_match('/^[a-f0-9]{24}$/', $categoryId) === 1 ? findCategoryById($categories, $categoryId) : null;
             $progress = isset($_POST['progress']) ? (int) $_POST['progress'] : null;
             if ($progress !== null) {
                 $progress = max(0, min(100, $progress));
@@ -518,8 +661,9 @@ if ($method === 'POST') {
                     if (($task['id'] ?? '') === $id) {
                         $task['title'] = $title;
                         $task['description'] = $description;
-                        $task['category_name'] = $categoryName;
-                        $task['category_color'] = $categoryColor;
+                        $task['category_id'] = $selectedCategory['id'] ?? '';
+                        $task['category_name'] = $selectedCategory['name'] ?? '';
+                        $task['category_color'] = $selectedCategory['color'] ?? DEFAULT_CATEGORY_COLOR;
                         if ($progress !== null) {
                             $task['progress'] = $progress;
                             $task['done'] = $progress >= 100;
@@ -528,6 +672,89 @@ if ($method === 'POST') {
                     }
                 }
                 unset($task);
+                saveTasks($tasks);
+            }
+
+            redirectToIndex($searchQuery, $page, $perPage, '', $categoryFilter, $fromDate, $toDate);
+        }
+
+
+        if ($action === 'addCategory') {
+            $categoryName = sanitizeCategoryName((string) ($_POST['category_name'] ?? ''));
+            $categoryColor = sanitizeCategoryColor((string) ($_POST['category_color'] ?? ''));
+
+            if ($categoryName !== '') {
+                $exists = false;
+                foreach ($categories as $category) {
+                    if (lowerSafe((string) $category['name']) === lowerSafe($categoryName)) {
+                        $exists = true;
+                        break;
+                    }
+                }
+
+                if (!$exists) {
+                    $categories[] = [
+                        'id' => bin2hex(random_bytes(12)),
+                        'name' => $categoryName,
+                        'color' => $categoryColor,
+                    ];
+                    saveCategories($categories);
+                }
+            }
+
+            redirectToIndex($searchQuery, $page, $perPage, '', $categoryFilter, $fromDate, $toDate);
+        }
+
+        if ($action === 'editCategory') {
+            $categoryId = (string) ($_POST['category_id'] ?? '');
+            $categoryName = sanitizeCategoryName((string) ($_POST['category_name'] ?? ''));
+            $categoryColor = sanitizeCategoryColor((string) ($_POST['category_color'] ?? ''));
+
+            if (preg_match('/^[a-f0-9]{24}$/', $categoryId) === 1 && $categoryName !== '') {
+                foreach ($categories as &$category) {
+                    if (($category['id'] ?? '') === $categoryId) {
+                        $oldName = (string) ($category['name'] ?? '');
+                        $category['name'] = $categoryName;
+                        $category['color'] = $categoryColor;
+
+                        foreach ($tasks as &$task) {
+                            if (($task['category_id'] ?? '') === $categoryId || lowerSafe((string) ($task['category_name'] ?? '')) === lowerSafe($oldName)) {
+                                $task['category_id'] = $categoryId;
+                                $task['category_name'] = $categoryName;
+                                $task['category_color'] = $categoryColor;
+                            }
+                        }
+                        unset($task);
+                        break;
+                    }
+                }
+                unset($category);
+                saveCategories($categories);
+                saveTasks($tasks);
+            }
+
+            redirectToIndex($searchQuery, $page, $perPage, '', $categoryFilter, $fromDate, $toDate);
+        }
+
+        if ($action === 'deleteCategory') {
+            $categoryId = (string) ($_POST['category_id'] ?? '');
+            if (preg_match('/^[a-f0-9]{24}$/', $categoryId) === 1) {
+                $categories = array_values(array_filter($categories, static fn(array $category): bool => ($category['id'] ?? '') !== $categoryId));
+
+                foreach ($tasks as &$task) {
+                    if (($task['category_id'] ?? '') === $categoryId) {
+                        $task['category_id'] = '';
+                        $task['category_name'] = '';
+                        $task['category_color'] = DEFAULT_CATEGORY_COLOR;
+                    }
+                }
+                unset($task);
+
+                if ($categoryFilter === $categoryId) {
+                    $categoryFilter = '';
+                }
+
+                saveCategories($categories);
                 saveTasks($tasks);
             }
 
@@ -564,7 +791,7 @@ if ($method === 'POST') {
 }
 
 $filteredTasks = array_values(array_filter($tasks, static function (array $task) use ($searchQuery, $categoryFilter, $fromDate, $toDate): bool {
-    if ($categoryFilter !== '' && lowerSafe((string) ($task['category_name'] ?? '')) !== lowerSafe($categoryFilter)) {
+    if ($categoryFilter !== '' && (string) ($task['category_id'] ?? '') !== $categoryFilter) {
         return false;
     }
 
@@ -600,17 +827,14 @@ $pagedTasks = array_slice($filteredTasks, $offset, $perPage);
 $groups = groupedByDay($pagedTasks);
 $isCustomPerPage = !in_array($perPage, [25, 50, 100, 200], true);
 $categoryOptions = [];
-foreach ($tasks as $taskForCategory) {
-    $name = sanitizeCategoryName((string) ($taskForCategory['category_name'] ?? ''));
-    $color = sanitizeCategoryColor((string) ($taskForCategory['category_color'] ?? ''));
-    if ($name === '') {
-        continue;
-    }
-    if (!isset($categoryOptions[$name])) {
-        $categoryOptions[$name] = $color;
-    }
+foreach ($categories as $category) {
+    $categoryOptions[] = [
+        'id' => (string) ($category['id'] ?? ''),
+        'name' => (string) ($category['name'] ?? ''),
+        'color' => (string) ($category['color'] ?? DEFAULT_CATEGORY_COLOR),
+    ];
 }
-ksort($categoryOptions);
+usort($categoryOptions, static fn(array $a, array $b): int => strcmp(lowerSafe((string) ($a['name'] ?? '')), lowerSafe((string) ($b['name'] ?? ''))));
 $csrfToken = $_SESSION['csrf_token'];
 ?>
 <!doctype html>
@@ -700,8 +924,8 @@ $csrfToken = $_SESSION['csrf_token'];
       <input name="q" type="text" value="<?= htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8'); ?>" placeholder="Search by title or description">
       <select name="category">
         <option value="">All categories</option>
-        <?php foreach ($categoryOptions as $categoryName => $categoryColor): ?>
-          <option value="<?= htmlspecialchars($categoryName, ENT_QUOTES, 'UTF-8'); ?>" <?= $categoryFilter === $categoryName ? 'selected' : ''; ?>><?= htmlspecialchars($categoryName, ENT_QUOTES, 'UTF-8'); ?></option>
+        <?php foreach ($categoryOptions as $category): ?>
+          <option value="<?= htmlspecialchars((string) $category['id'], ENT_QUOTES, 'UTF-8'); ?>" <?= $categoryFilter === (string) $category['id'] ? 'selected' : ''; ?>><?= htmlspecialchars((string) $category['name'], ENT_QUOTES, 'UTF-8'); ?></option>
         <?php endforeach; ?>
       </select>
       <input name="from" type="date" value="<?= htmlspecialchars($fromDate, ENT_QUOTES, 'UTF-8'); ?>">
@@ -738,6 +962,46 @@ $csrfToken = $_SESSION['csrf_token'];
       <?php endif; ?>
     </div>
 
+    <section class="task-form" style="margin-bottom:16px;">
+      <h2 style="margin:0 0 8px;font-size:1rem;color:#cbd5e1;">Manage categories</h2>
+      <form method="post" autocomplete="off">
+        <input type="hidden" name="action" value="addCategory">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
+        <input type="hidden" name="page" value="<?= (int) $page; ?>">
+        <input type="hidden" name="per_page" value="<?= (int) $perPage; ?>">
+        <?php if ($searchQuery !== ''): ?><input type="hidden" name="q" value="<?= htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+        <?php if ($categoryFilter !== ''): ?><input type="hidden" name="category" value="<?= htmlspecialchars($categoryFilter, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+        <?php if ($fromDate !== ''): ?><input type="hidden" name="from" value="<?= htmlspecialchars($fromDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+        <?php if ($toDate !== ''): ?><input type="hidden" name="to" value="<?= htmlspecialchars($toDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+        <div class="task-form-row">
+          <input name="category_name" type="text" maxlength="40" placeholder="New category" required>
+          <input name="category_color" type="color" value="<?= DEFAULT_CATEGORY_COLOR; ?>" title="Category color">
+          <button class="add-btn" type="submit">Add category</button>
+        </div>
+      </form>
+
+      <?php if (count($categoryOptions) > 0): ?>
+        <?php foreach ($categoryOptions as $category): ?>
+          <form method="post" autocomplete="off" style="margin-top:8px;">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
+            <input type="hidden" name="category_id" value="<?= htmlspecialchars((string) $category['id'], ENT_QUOTES, 'UTF-8'); ?>">
+            <input type="hidden" name="page" value="<?= (int) $page; ?>">
+            <input type="hidden" name="per_page" value="<?= (int) $perPage; ?>">
+            <?php if ($searchQuery !== ''): ?><input type="hidden" name="q" value="<?= htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+            <?php if ($categoryFilter !== ''): ?><input type="hidden" name="category" value="<?= htmlspecialchars($categoryFilter, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+            <?php if ($fromDate !== ''): ?><input type="hidden" name="from" value="<?= htmlspecialchars($fromDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+            <?php if ($toDate !== ''): ?><input type="hidden" name="to" value="<?= htmlspecialchars($toDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+            <div class="task-form-row">
+              <input name="category_name" type="text" maxlength="40" value="<?= htmlspecialchars((string) $category['name'], ENT_QUOTES, 'UTF-8'); ?>" required>
+              <input name="category_color" type="color" value="<?= htmlspecialchars((string) $category['color'], ENT_QUOTES, 'UTF-8'); ?>" title="Category color">
+              <button class="ghost-btn" type="submit" name="action" value="editCategory">Save</button>
+              <button class="danger-btn" type="submit" name="action" value="deleteCategory">Delete</button>
+            </div>
+          </form>
+        <?php endforeach; ?>
+      <?php endif; ?>
+    </section>
+
     <form class="task-form" method="post" autocomplete="off" enctype="multipart/form-data">
       <input type="hidden" name="action" value="add">
       <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
@@ -750,8 +1014,12 @@ $csrfToken = $_SESSION['csrf_token'];
       <input name="title" type="text" maxlength="120" placeholder="Task title" required>
       <textarea name="description" maxlength="1000" placeholder="Task description (optional)"></textarea>
       <div class="task-form-row">
-        <input name="category_name" type="text" maxlength="40" placeholder="Category (e.g. Work, Personal)">
-        <input name="category_color" type="color" value="#64748b" title="Category color">
+        <select name="category_id">
+          <option value="">No category</option>
+          <?php foreach ($categoryOptions as $category): ?>
+            <option value="<?= htmlspecialchars((string) $category['id'], ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars((string) $category['name'], ENT_QUOTES, 'UTF-8'); ?></option>
+          <?php endforeach; ?>
+        </select>
       </div>
       <input name="attachment" type="file" accept=".docx,.pdf,.txt,.md,.xlsx,.xls,.ppt,.pptx,.zip,.php,.js,.css,.html,.py">
       <div class="task-form-row"><button class="add-btn" type="submit">Add Task</button></div>
@@ -833,8 +1101,12 @@ $csrfToken = $_SESSION['csrf_token'];
                     <input name="title" type="text" maxlength="120" required value="<?= htmlspecialchars((string) ($task['title'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
                     <textarea name="description" maxlength="1000" placeholder="Task description (optional)"><?= htmlspecialchars((string) ($task['description'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></textarea>
                     <div class="task-form-row">
-                      <input name="category_name" type="text" maxlength="40" placeholder="Category" value="<?= htmlspecialchars((string) ($task['category_name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
-                      <input name="category_color" type="color" value="<?= htmlspecialchars((string) ($task['category_color'] ?? DEFAULT_CATEGORY_COLOR), ENT_QUOTES, 'UTF-8'); ?>" title="Category color">
+                      <select name="category_id">
+                        <option value="">No category</option>
+                        <?php foreach ($categoryOptions as $category): ?>
+                          <option value="<?= htmlspecialchars((string) $category['id'], ENT_QUOTES, 'UTF-8'); ?>" <?= ((string) ($task['category_id'] ?? '') === (string) $category['id']) ? 'selected' : ''; ?>><?= htmlspecialchars((string) $category['name'], ENT_QUOTES, 'UTF-8'); ?></option>
+                        <?php endforeach; ?>
+                      </select>
                     </div>
 
                     <div class="task-details js-task-details is-open">
