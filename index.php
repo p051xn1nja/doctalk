@@ -1391,37 +1391,12 @@ $csrfToken = $_SESSION['csrf_token'];
                     <input type="hidden" name="page" value="<?= (int) $page; ?>">
                     <input type="hidden" name="per_page" value="<?= (int) $perPage; ?>">
                     <button class="ghost-btn js-quick-add-files" type="button">+ Add files</button>
-                    <button class="add-btn" type="submit">Upload files</button>
+                    <button class="add-btn js-quick-upload-files" type="submit" style="display:none;">Upload files</button>
                     <input class="js-quick-task-attachments" name="attachment[]" type="file" multiple accept=".docx,.pdf,.txt,.md,.xlsx,.xls,.ppt,.pptx,.zip,.php,.js,.css,.html,.py" style="display:none;">
                     <div class="selected-files js-quick-selected-files" aria-live="polite" style="width:100%;"></div>
                   </form>
-                  <form method="post">
-                    <input type="hidden" name="action" value="toggle">
-                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
-                    <input type="hidden" name="id" value="<?= htmlspecialchars((string) ($task['id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
-                    <?php if ($searchQuery !== ''): ?><input type="hidden" name="q" value="<?= htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
-                    <?php if ($categoryFilter !== ''): ?><input type="hidden" name="category" value="<?= htmlspecialchars($categoryFilter, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
-                    <?php if ($statusFilter !== ''): ?><input type="hidden" name="status" value="<?= htmlspecialchars($statusFilter, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
-                    <?php if ($fromDate !== ''): ?><input type="hidden" name="from" value="<?= htmlspecialchars($fromDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
-                    <?php if ($toDate !== ''): ?><input type="hidden" name="to" value="<?= htmlspecialchars($toDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
-                    <input type="hidden" name="page" value="<?= (int) $page; ?>">
-                    <input type="hidden" name="per_page" value="<?= (int) $perPage; ?>">
-                    <button class="ghost-btn" type="submit"><?= !empty($task['done']) ? 'Undo' : 'Done'; ?></button>
-                  </form>
-                  <form method="post">
-                    <input type="hidden" name="action" value="delete">
-                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
-                    <input type="hidden" name="id" value="<?= htmlspecialchars((string) ($task['id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
-                    <?php if ($searchQuery !== ''): ?><input type="hidden" name="q" value="<?= htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
-                    <?php if ($categoryFilter !== ''): ?><input type="hidden" name="category" value="<?= htmlspecialchars($categoryFilter, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
-                    <?php if ($statusFilter !== ''): ?><input type="hidden" name="status" value="<?= htmlspecialchars($statusFilter, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
-                    <?php if ($fromDate !== ''): ?><input type="hidden" name="from" value="<?= htmlspecialchars($fromDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
-                    <?php if ($toDate !== ''): ?><input type="hidden" name="to" value="<?= htmlspecialchars($toDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
-                    <input type="hidden" name="page" value="<?= (int) $page; ?>">
-                    <input type="hidden" name="per_page" value="<?= (int) $perPage; ?>">
-                    <button class="danger-btn" type="submit">Delete</button>
-                  </form>
                 </div>
+
 
 
                 <?php if ($isEditing): ?>

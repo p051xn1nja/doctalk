@@ -281,7 +281,7 @@ document.addEventListener('DOMContentLoaded', function () {
   }, false);
 
 
-  function setupAttachmentPicker(input, selectedContainer, addButton, maxFiles) {
+  function setupAttachmentPicker(input, selectedContainer, addButton, maxFiles, uploadButton) {
     if (!input || !selectedContainer || typeof DataTransfer === 'undefined') {
       return;
     }
@@ -290,6 +290,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
     var renderSelectedFiles = function () {
       selectedContainer.innerHTML = '';
+
+      if (uploadButton) {
+        uploadButton.style.display = (input.files && input.files.length > 0) ? '' : 'none';
+      }
 
       if (!input.files || input.files.length === 0) {
         return;
@@ -395,7 +399,8 @@ document.addEventListener('DOMContentLoaded', function () {
     var quickInput = quickForm.querySelector('.js-quick-task-attachments');
     var quickSelected = quickForm.querySelector('.js-quick-selected-files');
     var quickAddButton = quickForm.querySelector('.js-quick-add-files');
-    setupAttachmentPicker(quickInput, quickSelected, quickAddButton, 10);
+    var quickUploadButton = quickForm.querySelector('.js-quick-upload-files');
+    setupAttachmentPicker(quickInput, quickSelected, quickAddButton, 10, quickUploadButton);
   }
 
   function applyWrapFormat(textarea, prefix, suffix, placeholder) {
