@@ -53,6 +53,64 @@ document.addEventListener('DOMContentLoaded', function () {
     toggle.textContent = open ? 'Day ▴' : 'Day ▾';
   }
 
+  function setOpenState(element, shouldOpen) {
+    if (!element) {
+      return;
+    }
+
+    if (shouldOpen) {
+      addClass(element, 'is-open');
+    } else {
+      removeClass(element, 'is-open');
+    }
+  }
+
+  function expandAllGroups() {
+    var years = document.querySelectorAll('.year-group');
+    for (var yIndex = 0; yIndex < years.length; yIndex += 1) {
+      var year = years[yIndex];
+      setOpenState(year.querySelector('.js-year-months'), true);
+      syncYearToggle(year);
+    }
+
+    var months = document.querySelectorAll('.month-group');
+    for (var mIndex = 0; mIndex < months.length; mIndex += 1) {
+      var month = months[mIndex];
+      setOpenState(month.querySelector('.js-month-days'), true);
+      syncMonthToggle(month);
+    }
+
+    var days = document.querySelectorAll('.day-group');
+    for (var dIndex = 0; dIndex < days.length; dIndex += 1) {
+      var day = days[dIndex];
+      setOpenState(day.querySelector('.js-day-tasks'), true);
+      syncDayToggle(day);
+    }
+  }
+
+  function expandCurrentMonth() {
+    var currentMonthKey = new Date().toISOString().slice(0, 7);
+    var targetMonth = document.querySelector('.month-group[data-month-key="' + currentMonthKey + '"]');
+    if (!targetMonth) {
+      return;
+    }
+
+    var parentYear = targetMonth.closest('.year-group');
+    if (parentYear) {
+      setOpenState(parentYear.querySelector('.js-year-months'), true);
+      syncYearToggle(parentYear);
+    }
+
+    setOpenState(targetMonth.querySelector('.js-month-days'), true);
+    syncMonthToggle(targetMonth);
+
+    var dayGroups = targetMonth.querySelectorAll('.day-group');
+    for (var index = 0; index < dayGroups.length; index += 1) {
+      setOpenState(dayGroups[index].querySelector('.js-day-tasks'), true);
+      syncDayToggle(dayGroups[index]);
+    }
+  }
+
   function syncToggle(item) {
     var toggle = item.querySelector('.js-details-toggle');
     var details = item.querySelector('.js-task-details');
@@ -79,6 +137,22 @@ document.addEventListener('DOMContentLoaded', function () {
   var daySections = document.querySelectorAll('.day-group');
   for (var d = 0; d < daySections.length; d += 1) {
     syncDayToggle(daySections[d]);
+  }
+
+  var expandAllButton = document.querySelector('.js-expand-all-groups');
+  if (expandAllButton) {
+    expandAllButton.addEventListener('click', function (event) {
+      expandAllGroups();
+      event.preventDefault();
+    }, false);
+  }
+
+  var expandCurrentMonthButton = document.querySelector('.js-expand-current-month');
+  if (expandCurrentMonthButton) {
+    expandCurrentMonthButton.addEventListener('click', function (event) {
+      expandCurrentMonth();
+      event.preventDefault();
+    }, false);
   }
 
   var items = document.querySelectorAll('.task-item');

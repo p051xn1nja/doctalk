@@ -1152,6 +1152,7 @@ $csrfToken = $_SESSION['csrf_token'];
     .task-attachment a { color:#7dd3fc; }
     .selected-files { display:grid; gap:6px; margin-top:6px; }
     .selected-file { display:flex; align-items:center; justify-content:space-between; gap:8px; background:#0b1220; border:1px solid #334155; border-radius:10px; padding:8px 10px; color:#cbd5e1; font-size:.9rem; }
+    .group-actions { display:flex; gap:8px; flex-wrap:wrap; margin:0 0 12px; }
 
     a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
       outline:2px solid var(--focus);
@@ -1264,20 +1265,27 @@ $csrfToken = $_SESSION['csrf_token'];
       <div class="task-form-row"><button class="add-btn" type="submit">Add Task</button></div>
     </form>
 
+    <?php if (count($pagedTasks) > 0): ?>
+      <div class="group-actions">
+        <button class="ghost-btn js-expand-all-groups" type="button">Expand all</button>
+        <button class="ghost-btn js-expand-current-month" type="button">Expand current month</button>
+      </div>
+    <?php endif; ?>
+
     <?php if (count($pagedTasks) === 0): ?>
       <div class="empty"><?= $searchQuery === '' ? 'No tasks yet — add one above.' : 'No tasks match your search.'; ?></div>
     <?php else: ?>
-      <?php foreach ($groups as $yearGroup): ?>
+      <?php foreach ($groups as $yearKey => $yearGroup): ?>
         <?php $yearHasEditing = false; foreach ($yearGroup['months'] as $yearMonthForEdit) { foreach ($yearMonthForEdit['days'] as $yearDayForEdit) { if (tasksContainEditId($yearDayForEdit['tasks'], $editId)) { $yearHasEditing = true; break 2; } } } ?>
-        <section class="year-group">
+        <section class="year-group" data-year-key="<?= htmlspecialchars((string) $yearKey, ENT_QUOTES, "UTF-8"); ?>">
           <div class="year-header">
             <h2 class="year-heading"><?= htmlspecialchars($yearGroup['label'], ENT_QUOTES, 'UTF-8'); ?></h2>
             <button class="year-toggle js-year-toggle" type="button" aria-expanded="<?= $yearHasEditing ? 'true' : 'false'; ?>">Year <?= $yearHasEditing ? '▴' : '▾'; ?></button>
           </div>
           <div class="year-months js-year-months <?= $yearHasEditing ? 'is-open' : ''; ?>">
-            <?php foreach ($yearGroup['months'] as $monthGroup): ?>
+            <?php foreach ($yearGroup['months'] as $monthKey => $monthGroup): ?>
               <?php $monthHasEditing = false; foreach ($monthGroup['days'] as $monthDayForEdit) { if (tasksContainEditId($monthDayForEdit['tasks'], $editId)) { $monthHasEditing = true; break; } } ?>
-              <section class="month-group">
+              <section class="month-group" data-month-key="<?= htmlspecialchars((string) $monthKey, ENT_QUOTES, "UTF-8"); ?>">
                 <div class="month-header">
                   <h3 class="month-heading"><?= htmlspecialchars($monthGroup['label'], ENT_QUOTES, 'UTF-8'); ?></h3>
                   <button class="month-toggle js-month-toggle" type="button" aria-expanded="<?= $monthHasEditing ? 'true' : 'false'; ?>">Month <?= $monthHasEditing ? '▴' : '▾'; ?></button>
