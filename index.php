@@ -1122,6 +1122,9 @@ $csrfToken = $_SESSION['csrf_token'];
     input[type="file"]::file-selector-button { background:#1e293b; color:var(--text); border:0; border-radius:8px; padding:8px 10px; margin-right:10px; }
     input[type="color"] { width:44px; height:40px; border:1px solid #334155; border-radius:10px; background:#0b1220; padding:4px; }
     textarea { min-height:88px; resize:vertical; line-height:1.45; }
+    .desc-editor { display:grid; gap:8px; }
+    .desc-toolbar { display:flex; flex-wrap:wrap; gap:6px; }
+    .desc-tool-btn { background:#1e293b; color:var(--text); border:1px solid #334155; border-radius:8px; padding:6px 10px; font-size:.85rem; }
 
     button { border:0; cursor:pointer; transition:transform .12s ease, filter .2s ease, background-color .2s ease; }
     button:hover { filter:brightness(1.05); }
@@ -1286,7 +1289,19 @@ $csrfToken = $_SESSION['csrf_token'];
       <?php if ($fromDate !== ''): ?><input type="hidden" name="from" value="<?= htmlspecialchars($fromDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
       <?php if ($toDate !== ''): ?><input type="hidden" name="to" value="<?= htmlspecialchars($toDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
       <input name="title" type="text" maxlength="120" placeholder="Task title" required>
-      <textarea name="description" maxlength="1000" placeholder="Task description (optional)"></textarea>
+      <div class="desc-editor">
+        <div class="desc-toolbar" role="toolbar" aria-label="Description formatting tools">
+          <button class="desc-tool-btn" type="button" data-format-action="bold"><strong>B</strong></button>
+          <button class="desc-tool-btn" type="button" data-format-action="italic"><em>I</em></button>
+          <button class="desc-tool-btn" type="button" data-format-action="h2">H2</button>
+          <button class="desc-tool-btn" type="button" data-format-action="ul">• List</button>
+          <button class="desc-tool-btn" type="button" data-format-action="ol">1. List</button>
+          <button class="desc-tool-btn" type="button" data-format-action="quote">Quote</button>
+          <button class="desc-tool-btn" type="button" data-format-action="code">Code</button>
+          <button class="desc-tool-btn" type="button" data-format-action="link">Link</button>
+        </div>
+        <textarea name="description" maxlength="1000" placeholder="Task description (optional)" class="js-format-description"></textarea>
+      </div>
       <div class="task-form-row">
         <select name="category_id">
           <option value="">No category</option>
@@ -1422,7 +1437,19 @@ $csrfToken = $_SESSION['csrf_token'];
                     <input type="hidden" name="page" value="<?= (int) $page; ?>">
                     <input type="hidden" name="per_page" value="<?= (int) $perPage; ?>">
                     <input name="title" type="text" maxlength="120" required value="<?= htmlspecialchars((string) ($task['title'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
-                    <textarea name="description" maxlength="1000" placeholder="Task description (optional)"><?= htmlspecialchars((string) ($task['description'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></textarea>
+                    <div class="desc-editor">
+                      <div class="desc-toolbar" role="toolbar" aria-label="Description formatting tools">
+                        <button class="desc-tool-btn" type="button" data-format-action="bold"><strong>B</strong></button>
+                        <button class="desc-tool-btn" type="button" data-format-action="italic"><em>I</em></button>
+                        <button class="desc-tool-btn" type="button" data-format-action="h2">H2</button>
+                        <button class="desc-tool-btn" type="button" data-format-action="ul">• List</button>
+                        <button class="desc-tool-btn" type="button" data-format-action="ol">1. List</button>
+                        <button class="desc-tool-btn" type="button" data-format-action="quote">Quote</button>
+                        <button class="desc-tool-btn" type="button" data-format-action="code">Code</button>
+                        <button class="desc-tool-btn" type="button" data-format-action="link">Link</button>
+                      </div>
+                      <textarea name="description" maxlength="1000" placeholder="Task description (optional)" class="js-format-description"><?= htmlspecialchars((string) ($task['description'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></textarea>
+                    </div>
                     <div class="task-form-row">
                       <select name="category_id">
                         <option value="">No category</option>

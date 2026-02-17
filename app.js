@@ -398,6 +398,95 @@ document.addEventListener('DOMContentLoaded', function () {
     setupAttachmentPicker(quickInput, quickSelected, quickAddButton, 10);
   }
 
+  function applyWrapFormat(textarea, prefix, suffix, placeholder) {
+    if (!textarea) {
+      return;
+    }
+
+    var start = textarea.selectionStart || 0;
+    var end = textarea.selectionEnd || 0;
+    var value = textarea.value || '';
+    var selected = value.slice(start, end);
+    if (selected === '') {
+      selected = placeholder;
+    }
+
+    var next = value.slice(0, start) + prefix + selected + suffix + value.slice(end);
+    textarea.value = next;
+
+    var cursorStart = start + prefix.length;
+    var cursorEnd = cursorStart + selected.length;
+    textarea.focus();
+    textarea.setSelectionRange(cursorStart, cursorEnd);
+  }
+
+  function applyLinePrefixFormat(textarea, prefix, placeholder) {
+    if (!textarea) {
+      return;
+    }
+
+    var start = textarea.selectionStart || 0;
+    var end = textarea.selectionEnd || 0;
+    var value = textarea.value || '';
+    var selected = value.slice(start, end);
+    if (selected === '') {
+      selected = placeholder;
+    }
+
+    var lines = selected.split('\n');
+    for (var lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+      lines[lineIndex] = prefix + lines[lineIndex];
+    }
+
+    var replaced = lines.join('\n');
+    var next = value.slice(0, start) + replaced + value.slice(end);
+    textarea.value = next;
+    textarea.focus();
+    textarea.setSelectionRange(start, start + replaced.length);
+  }
+
+  var descriptionToolbars = document.querySelectorAll('.desc-toolbar');
+  for (var toolbarIndex = 0; toolbarIndex < descriptionToolbars.length; toolbarIndex += 1) {
+    descriptionToolbars[toolbarIndex].addEventListener('click', function (event) {
+      var target = event.target;
+      if (!target) {
+        return;
+      }
+
+      var button = target.closest('[data-format-action]');
+      if (!button) {
+        return;
+      }
+
+      var editor = button.closest('.desc-editor');
+      var textarea = editor ? editor.querySelector('.js-format-description') : null;
+      if (!textarea) {
+        return;
+      }
+
+      var action = button.getAttribute('data-format-action');
+      if (action === 'bold') {
+        applyWrapFormat(textarea, '**', '**', 'bold text');
+      } else if (action === 'italic') {
+        applyWrapFormat(textarea, '*', '*', 'italic text');
+      } else if (action === 'h2') {
+        applyLinePrefixFormat(textarea, '## ', 'Heading');
+      } else if (action === 'ul') {
+        applyLinePrefixFormat(textarea, '- ', 'List item');
+      } else if (action === 'ol') {
+        applyLinePrefixFormat(textarea, '1. ', 'List item');
+      } else if (action === 'quote') {
+        applyLinePrefixFormat(textarea, '> ', 'Quoted text');
+      } else if (action === 'code') {
+        applyWrapFormat(textarea, '`', '`', 'code');
+      } else if (action === 'link') {
+        applyWrapFormat(textarea, '[', '](https://)', 'link text');
+      }
+
+      event.preventDefault();
+    }, false);
+  }
+
   var dateOpenButtons = document.querySelectorAll('.js-date-open');
   for (var dateButtonIndex = 0; dateButtonIndex < dateOpenButtons.length; dateButtonIndex += 1) {
     dateOpenButtons[dateButtonIndex].addEventListener('click', function (event) {
