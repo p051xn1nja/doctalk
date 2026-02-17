@@ -314,6 +314,29 @@ document.addEventListener('DOMContentLoaded', function () {
     setupAttachmentPicker(editInput, editSelected, editAddButton, 10);
   }
 
+  var quickAttachForms = document.querySelectorAll('.js-quick-attach-form');
+  for (var quickIndex = 0; quickIndex < quickAttachForms.length; quickIndex += 1) {
+    var quickForm = quickAttachForms[quickIndex];
+    var quickInput = quickForm.querySelector('.js-quick-task-attachments');
+    var quickSelected = quickForm.querySelector('.js-quick-selected-files');
+    var quickAddButton = quickForm.querySelector('.js-quick-add-files');
+    setupAttachmentPicker(quickInput, quickSelected, quickAddButton, 10);
+  }
+
+  var dateOpenButtons = document.querySelectorAll('.js-date-open');
+  for (var dateButtonIndex = 0; dateButtonIndex < dateOpenButtons.length; dateButtonIndex += 1) {
+    dateOpenButtons[dateButtonIndex].addEventListener('click', function (event) {
+      var wrapper = this.parentNode;
+      var dateInput = wrapper ? wrapper.querySelector('.js-date-picker') : null;
+      if (dateInput) {
+        dateInput.focus();
+        if (typeof dateInput.showPicker === 'function') {
+          dateInput.showPicker();
+        }
+      }
+      event.preventDefault();
+    }, false);
+  }
 
   var dateInputs = document.querySelectorAll('.js-date-picker');
   for (var dateIndex = 0; dateIndex < dateInputs.length; dateIndex += 1) {

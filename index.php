@@ -813,6 +813,37 @@ if ($method === 'POST') {
             redirectToIndex($searchQuery, $page, $perPage, '', $categoryFilter, $fromDate, $toDate);
         }
 
+        if ($action === 'addAttachment') {
+            $id = (string) ($_POST['id'] ?? '');
+
+            if (preg_match('/^[a-f0-9]{24}$/', $id) === 1) {
+                foreach ($tasks as &$task) {
+                    if (($task['id'] ?? '') !== $id) {
+                        continue;
+                    }
+
+                    $currentAttachments = isset($task['attachments']) && is_array($task['attachments']) ? $task['attachments'] : [];
+                    if ($currentAttachments === [] && isset($task['attachment']) && is_array($task['attachment'])) {
+                        $currentAttachments = [$task['attachment']];
+                    }
+
+                    $slotsAvailable = MAX_TASK_FILES - count($currentAttachments);
+                    if ($slotsAvailable > 0 && isset($_FILES['attachment']) && is_array($_FILES['attachment'])) {
+                        $newAttachments = storeUploadedAttachments($_FILES['attachment'], (string) ($task['id'] ?? $id), $slotsAvailable);
+                        $currentAttachments = array_merge($currentAttachments, $newAttachments);
+                    }
+
+                    $task['attachments'] = array_slice($currentAttachments, 0, MAX_TASK_FILES);
+                    $task['attachment'] = null;
+                    break;
+                }
+                unset($task);
+                saveTasks($tasks);
+            }
+
+            redirectToIndex($searchQuery, $page, $perPage, '', $categoryFilter, $fromDate, $toDate);
+        }
+
         if ($action === 'editTask') {
             $id = (string) ($_POST['id'] ?? '');
             $title = sanitizeTaskTitle((string) ($_POST['title'] ?? ''));
@@ -978,11 +1009,15 @@ $csrfToken = $_SESSION['csrf_token'];
     .search-row { display:flex; gap:10px; margin-bottom:12px; flex-wrap:wrap; }
     .search-row input, .search-row button, .search-row select, .task-form input, .task-form select, .task-form textarea, .task-form button { font: inherit; }
     .search-row input { flex:1; min-width:220px; }
+    .date-field { position:relative; min-width:170px; flex:1; }
+    .date-field input[type="date"] { padding-right:42px; }
+    .date-open-btn { position:absolute; right:7px; top:50%; transform:translateY(-50%); border:0; background:transparent; color:#e2e8f0; cursor:pointer; font-size:18px; line-height:1; padding:2px 4px; }
+
     .task-form { display:grid; gap:10px; margin-bottom:20px; }
     .task-form-row { display:flex; gap:10px; }
     input[type="text"], input[type="date"], select, input[type="file"], textarea { width:100%; background:#0b1220; color:var(--text); border:1px solid #334155; border-radius:12px; padding:10px 12px; }
-    input[type="date"] { color-scheme: dark; cursor: pointer; padding-right: 40px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23e2e8f0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2' ry='2'/%3E%3Cline x1='16' y1='2' x2='16' y2='6'/%3E%3Cline x1='8' y1='2' x2='8' y2='6'/%3E%3Cline x1='3' y1='10' x2='21' y2='10'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; background-size: 18px 18px; }
-    input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.95) brightness(1.25); opacity: 1; cursor: pointer; display: block; }
+    input[type="date"] { color-scheme: dark; cursor: pointer; }
+    input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.95) brightness(1.25); opacity: 1; cursor: pointer; }
     input[type="date"]::-webkit-datetime-edit { color: var(--text); }
     input[type="date"][value=""]::-webkit-datetime-edit { color: var(--muted); }
     input[type="file"]::file-selector-button { background:#1e293b; color:var(--text); border:0; border-radius:8px; padding:8px 10px; margin-right:10px; }
@@ -1066,8 +1101,14 @@ $csrfToken = $_SESSION['csrf_token'];
           <option value="<?= htmlspecialchars((string) $category['id'], ENT_QUOTES, 'UTF-8'); ?>" <?= $categoryFilter === (string) $category['id'] ? 'selected' : ''; ?>><?= htmlspecialchars((string) $category['name'], ENT_QUOTES, 'UTF-8'); ?></option>
         <?php endforeach; ?>
       </select>
-      <input class="js-date-picker" name="from" type="date" value="<?= htmlspecialchars($fromDate, ENT_QUOTES, 'UTF-8'); ?>">
-      <input class="js-date-picker" name="to" type="date" value="<?= htmlspecialchars($toDate, ENT_QUOTES, 'UTF-8'); ?>">
+      <label class="date-field">
+        <input class="js-date-picker" name="from" type="date" value="<?= htmlspecialchars($fromDate, ENT_QUOTES, 'UTF-8'); ?>">
+        <button class="js-date-open date-open-btn" type="button" aria-label="Open from date calendar">📅</button>
+      </label>
+      <label class="date-field">
+        <input class="js-date-picker" name="to" type="date" value="<?= htmlspecialchars($toDate, ENT_QUOTES, 'UTF-8'); ?>">
+        <button class="js-date-open date-open-btn" type="button" aria-label="Open to date calendar">📅</button>
+      </label>
       <input type="hidden" name="per_page" value="<?= (int) $perPage; ?>">
       <button class="ghost-btn" type="submit">Search</button>
       <?php if ($searchQuery !== '' || $categoryFilter !== '' || $fromDate !== '' || $toDate !== ''): ?>
@@ -1281,6 +1322,23 @@ $csrfToken = $_SESSION['csrf_token'];
                         </form>
                       <?php endforeach; ?>
                     <?php endif; ?>
+                    <form class="task-form js-quick-attach-form" method="post" enctype="multipart/form-data" autocomplete="off" style="margin-top:8px;">
+                      <input type="hidden" name="action" value="addAttachment">
+                      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
+                      <input type="hidden" name="id" value="<?= htmlspecialchars((string) ($task['id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                      <?php if ($searchQuery !== ''): ?><input type="hidden" name="q" value="<?= htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+                      <?php if ($categoryFilter !== ''): ?><input type="hidden" name="category" value="<?= htmlspecialchars($categoryFilter, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+                      <?php if ($fromDate !== ''): ?><input type="hidden" name="from" value="<?= htmlspecialchars($fromDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+                      <?php if ($toDate !== ''): ?><input type="hidden" name="to" value="<?= htmlspecialchars($toDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+                      <input type="hidden" name="page" value="<?= (int) $page; ?>">
+                      <input type="hidden" name="per_page" value="<?= (int) $perPage; ?>">
+                      <div class="task-form-row" style="align-items:center;">
+                        <button class="ghost-btn js-quick-add-files" type="button">+ Add files</button>
+                        <button class="add-btn" type="submit">Upload</button>
+                      </div>
+                      <input class="js-quick-task-attachments" name="attachment[]" type="file" multiple accept=".docx,.pdf,.txt,.md,.xlsx,.xls,.ppt,.pptx,.zip,.php,.js,.css,.html,.py" style="display:none;">
+                      <div class="selected-files js-quick-selected-files" aria-live="polite"></div>
+                    </form>
                     <form class="slider-form" method="post">
                       <input type="hidden" name="action" value="updateProgress">
                       <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
