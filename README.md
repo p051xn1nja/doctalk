@@ -18,8 +18,9 @@ Then open http://localhost:8000/login.php.
 ## Features
 
 - Login-gated access to the task app
-- Add tasks with title + description
+- Add tasks with title + description, optional category, and category color
 - Search tasks by title/description
+- Filter tasks by category and date range
 - Default grouping by day (collapsed sections with expandable day arrows)
 - Adjustable per-task progress (single slider control with live percentage)
 - Pagination with per-page options (25/50/100/200/custom, default 50)

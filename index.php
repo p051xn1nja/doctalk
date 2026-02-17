@@ -9,6 +9,7 @@ const MAX_DESCRIPTION_LENGTH = 1000;
 const DEFAULT_PER_PAGE = 50;
 const MAX_PER_PAGE = 1000;
 const UPLOAD_DIR = DATA_DIR . '/uploads';
+const DEFAULT_CATEGORY_COLOR = '#64748b';
 
 configureSession();
 session_start();
@@ -98,6 +99,8 @@ function loadTasks(): array
         $done = !empty($task['done']);
         $progress = isset($task['progress']) ? (int) $task['progress'] : ($done ? 100 : 0);
         $createdAt = isset($task['created_at']) ? (string) $task['created_at'] : '';
+        $categoryName = isset($task['category_name']) ? sanitizeCategoryName((string) $task['category_name']) : '';
+        $categoryColor = isset($task['category_color']) ? sanitizeCategoryColor((string) $task['category_color']) : DEFAULT_CATEGORY_COLOR;
         $attachment = null;
         if (isset($task['attachment']) && is_array($task['attachment'])) {
             $attachmentName = isset($task['attachment']['name']) ? (string) $task['attachment']['name'] : '';
@@ -127,6 +130,8 @@ function loadTasks(): array
             'done' => $done,
             'progress' => $progress,
             'created_at' => $createdAt,
+            'category_name' => $categoryName,
+            'category_color' => $categoryColor,
             'attachment' => $attachment,
         ];
     }
@@ -158,9 +163,9 @@ function saveTasks(array $tasks): void
     @chmod(DATA_FILE, 0600);
 }
 
-function redirectToIndex(string $search = '', int $page = 1, int $perPage = DEFAULT_PER_PAGE, string $editId = ''): void
+function redirectToIndex(string $search = '', int $page = 1, int $perPage = DEFAULT_PER_PAGE, string $editId = '', string $categoryFilter = '', string $fromDate = '', string $toDate = ''): void
 {
-    header('Location: ' . buildIndexUrl($search, $page, $perPage, $editId), true, 303);
+    header('Location: ' . buildIndexUrl($search, $page, $perPage, $editId, $categoryFilter, $fromDate, $toDate), true, 303);
     exit;
 }
 
@@ -193,6 +198,34 @@ function verifyCsrfToken(?string $submittedToken): bool
     return hash_equals($_SESSION['csrf_token'], $submittedToken);
 }
 
+
+
+function sanitizeCategoryName(string $category): string
+{
+    $category = trim($category);
+    $category = preg_replace('/[\x00-\x1F\x7F]/u', '', $category) ?? '';
+    if ($category === '') {
+        return '';
+    }
+
+    return function_exists('mb_substr') ? mb_substr($category, 0, 40) : substr($category, 0, 40);
+}
+
+function sanitizeCategoryColor(string $color): string
+{
+    $color = trim($color);
+    if (preg_match('/^#[0-9a-fA-F]{6}$/', $color) === 1) {
+        return strtolower($color);
+    }
+
+    return DEFAULT_CATEGORY_COLOR;
+}
+
+function normalizeDateFilter(string $date): string
+{
+    $date = trim($date);
+    return preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) === 1 ? $date : '';
+}
 
 function lowerSafe(string $value): string
 {
@@ -266,14 +299,14 @@ function parsePerPage(array $source): int
     return DEFAULT_PER_PAGE;
 }
 
-function buildDownloadUrl(string $searchQuery, int $page, int $perPage, string $storedName): string
+function buildDownloadUrl(string $searchQuery, int $page, int $perPage, string $storedName, string $categoryFilter = '', string $fromDate = '', string $toDate = ''): string
 {
-    $base = buildIndexUrl($searchQuery, $page, $perPage);
+    $base = buildIndexUrl($searchQuery, $page, $perPage, '', $categoryFilter, $fromDate, $toDate);
     $joiner = strpos($base, '?') === false ? '?' : '&';
     return $base . $joiner . 'download=' . rawurlencode($storedName);
 }
 
-function buildIndexUrl(string $searchQuery, int $page, int $perPage, string $editId = ''): string
+function buildIndexUrl(string $searchQuery, int $page, int $perPage, string $editId = '', string $categoryFilter = '', string $fromDate = '', string $toDate = ''): string
 {
     $params = [];
     if ($searchQuery !== '') {
@@ -287,6 +320,15 @@ function buildIndexUrl(string $searchQuery, int $page, int $perPage, string $edi
     }
     if ($editId !== '') {
         $params['edit'] = $editId;
+    }
+    if ($categoryFilter !== '') {
+        $params['category'] = $categoryFilter;
+    }
+    if ($fromDate !== '') {
+        $params['from'] = $fromDate;
+    }
+    if ($toDate !== '') {
+        $params['to'] = $toDate;
     }
 
     $url = appPath('index.php');
@@ -346,6 +388,9 @@ if (!in_array($method, ['GET', 'POST'], true)) {
 $tasks = loadTasks();
 $error = '';
 $searchQuery = trim((string) ($_GET['q'] ?? $_POST['q'] ?? ''));
+$categoryFilter = sanitizeCategoryName((string) ($_GET['category'] ?? $_POST['category'] ?? ''));
+$fromDate = normalizeDateFilter((string) ($_GET['from'] ?? $_POST['from'] ?? ''));
+$toDate = normalizeDateFilter((string) ($_GET['to'] ?? $_POST['to'] ?? ''));
 $perPage = parsePerPage($_GET + $_POST);
 $page = isset($_GET['page']) ? max(1, (int) $_GET['page']) : (isset($_POST['page']) ? max(1, (int) $_POST['page']) : 1);
 $editId = (string) ($_GET['edit'] ?? $_POST['edit'] ?? '');
@@ -394,6 +439,8 @@ if ($method === 'POST') {
         if ($action === 'add') {
             $title = sanitizeTaskTitle((string) ($_POST['title'] ?? ''));
             $description = sanitizeTaskDescription((string) ($_POST['description'] ?? ''));
+            $categoryName = sanitizeCategoryName((string) ($_POST['category_name'] ?? ''));
+            $categoryColor = sanitizeCategoryColor((string) ($_POST['category_color'] ?? ''));
 
             if ($title !== '') {
                 $taskId = bin2hex(random_bytes(12));
@@ -409,12 +456,14 @@ if ($method === 'POST') {
                     'done' => false,
                     'progress' => 0,
                     'created_at' => gmdate('c'),
+                    'category_name' => $categoryName,
+                    'category_color' => $categoryColor,
                     'attachment' => $attachment,
                 ];
                 saveTasks($tasks);
             }
 
-            redirectToIndex($searchQuery, 1, $perPage);
+            redirectToIndex($searchQuery, 1, $perPage, '', $categoryFilter, $fromDate, $toDate);
         }
 
         if ($action === 'toggle') {
@@ -430,7 +479,7 @@ if ($method === 'POST') {
                 saveTasks($tasks);
             }
 
-            redirectToIndex($searchQuery, $page, $perPage);
+            redirectToIndex($searchQuery, $page, $perPage, '', $categoryFilter, $fromDate, $toDate);
         }
 
         if ($action === 'updateProgress') {
@@ -450,13 +499,15 @@ if ($method === 'POST') {
                 saveTasks($tasks);
             }
 
-            redirectToIndex($searchQuery, $page, $perPage);
+            redirectToIndex($searchQuery, $page, $perPage, '', $categoryFilter, $fromDate, $toDate);
         }
 
         if ($action === 'editTask') {
             $id = (string) ($_POST['id'] ?? '');
             $title = sanitizeTaskTitle((string) ($_POST['title'] ?? ''));
             $description = sanitizeTaskDescription((string) ($_POST['description'] ?? ''));
+            $categoryName = sanitizeCategoryName((string) ($_POST['category_name'] ?? ''));
+            $categoryColor = sanitizeCategoryColor((string) ($_POST['category_color'] ?? ''));
             $progress = isset($_POST['progress']) ? (int) $_POST['progress'] : null;
             if ($progress !== null) {
                 $progress = max(0, min(100, $progress));
@@ -467,6 +518,8 @@ if ($method === 'POST') {
                     if (($task['id'] ?? '') === $id) {
                         $task['title'] = $title;
                         $task['description'] = $description;
+                        $task['category_name'] = $categoryName;
+                        $task['category_color'] = $categoryColor;
                         if ($progress !== null) {
                             $task['progress'] = $progress;
                             $task['done'] = $progress >= 100;
@@ -478,7 +531,7 @@ if ($method === 'POST') {
                 saveTasks($tasks);
             }
 
-            redirectToIndex($searchQuery, $page, $perPage);
+            redirectToIndex($searchQuery, $page, $perPage, '', $categoryFilter, $fromDate, $toDate);
         }
 
         if ($action === 'delete') {
@@ -499,7 +552,7 @@ if ($method === 'POST') {
                 saveTasks($tasks);
             }
 
-            redirectToIndex($searchQuery, $page, $perPage);
+            redirectToIndex($searchQuery, $page, $perPage, '', $categoryFilter, $fromDate, $toDate);
         }
 
         http_response_code(400);
@@ -510,7 +563,25 @@ if ($method === 'POST') {
     }
 }
 
-$filteredTasks = array_values(array_filter($tasks, static function (array $task) use ($searchQuery): bool {
+$filteredTasks = array_values(array_filter($tasks, static function (array $task) use ($searchQuery, $categoryFilter, $fromDate, $toDate): bool {
+    if ($categoryFilter !== '' && lowerSafe((string) ($task['category_name'] ?? '')) !== lowerSafe($categoryFilter)) {
+        return false;
+    }
+
+    $createdDate = '';
+    $timestamp = strtotime((string) ($task['created_at'] ?? ''));
+    if ($timestamp !== false) {
+        $createdDate = gmdate('Y-m-d', $timestamp);
+    }
+
+    if ($fromDate !== '' && ($createdDate === '' || $createdDate < $fromDate)) {
+        return false;
+    }
+
+    if ($toDate !== '' && ($createdDate === '' || $createdDate > $toDate)) {
+        return false;
+    }
+
     if ($searchQuery === '') {
         return true;
     }
@@ -528,6 +599,18 @@ $offset = ($page - 1) * $perPage;
 $pagedTasks = array_slice($filteredTasks, $offset, $perPage);
 $groups = groupedByDay($pagedTasks);
 $isCustomPerPage = !in_array($perPage, [25, 50, 100, 200], true);
+$categoryOptions = [];
+foreach ($tasks as $taskForCategory) {
+    $name = sanitizeCategoryName((string) ($taskForCategory['category_name'] ?? ''));
+    $color = sanitizeCategoryColor((string) ($taskForCategory['category_color'] ?? ''));
+    if ($name === '') {
+        continue;
+    }
+    if (!isset($categoryOptions[$name])) {
+        $categoryOptions[$name] = $color;
+    }
+}
+ksort($categoryOptions);
 $csrfToken = $_SESSION['csrf_token'];
 ?>
 <!doctype html>
@@ -581,6 +664,7 @@ $csrfToken = $_SESSION['csrf_token'];
     .task-title { font-size:1rem; line-height:1.35; margin-right:0; word-break:break-word; }
     .title-group { display:flex; align-items:center; gap:8px; margin-right:auto; min-width:0; }
     .task-percent { color:#cbd5e1; font-size:.9rem; min-width:48px; text-align:right; }
+    .category-badge { display:inline-flex; align-items:center; gap:6px; font-size:.78rem; padding:4px 8px; border-radius:999px; color:#e2e8f0; border:1px solid #334155; }
     .desc { color:#cbd5e1; margin:8px 0; white-space:pre-wrap; }
     .done { text-decoration:line-through; color:var(--muted); }
     .progress-wrap { display:flex; align-items:center; gap:10px; margin:8px 0; }
@@ -614,9 +698,17 @@ $csrfToken = $_SESSION['csrf_token'];
 
     <form class="search-row" method="get" autocomplete="off">
       <input name="q" type="text" value="<?= htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8'); ?>" placeholder="Search by title or description">
+      <select name="category">
+        <option value="">All categories</option>
+        <?php foreach ($categoryOptions as $categoryName => $categoryColor): ?>
+          <option value="<?= htmlspecialchars($categoryName, ENT_QUOTES, 'UTF-8'); ?>" <?= $categoryFilter === $categoryName ? 'selected' : ''; ?>><?= htmlspecialchars($categoryName, ENT_QUOTES, 'UTF-8'); ?></option>
+        <?php endforeach; ?>
+      </select>
+      <input name="from" type="date" value="<?= htmlspecialchars($fromDate, ENT_QUOTES, 'UTF-8'); ?>">
+      <input name="to" type="date" value="<?= htmlspecialchars($toDate, ENT_QUOTES, 'UTF-8'); ?>">
       <input type="hidden" name="per_page" value="<?= (int) $perPage; ?>">
       <button class="ghost-btn" type="submit">Search</button>
-      <?php if ($searchQuery !== ''): ?>
+      <?php if ($searchQuery !== '' || $categoryFilter !== '' || $fromDate !== '' || $toDate !== ''): ?>
         <a class="ghost-btn" style="text-decoration:none;display:inline-flex;align-items:center;" href="<?= htmlspecialchars(buildIndexUrl('', 1, $perPage), ENT_QUOTES, 'UTF-8'); ?>">Clear</a>
       <?php endif; ?>
     </form>
@@ -624,6 +716,9 @@ $csrfToken = $_SESSION['csrf_token'];
     <div class="pager">
       <form method="get" autocomplete="off">
         <?php if ($searchQuery !== ''): ?><input type="hidden" name="q" value="<?= htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+        <?php if ($categoryFilter !== ''): ?><input type="hidden" name="category" value="<?= htmlspecialchars($categoryFilter, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+        <?php if ($fromDate !== ''): ?><input type="hidden" name="from" value="<?= htmlspecialchars($fromDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+        <?php if ($toDate !== ''): ?><input type="hidden" name="to" value="<?= htmlspecialchars($toDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
         <label for="per_page">Per page</label>
         <select id="per_page" name="per_page">
           <?php foreach ([25, 50, 100, 200] as $size): ?>
@@ -636,10 +731,10 @@ $csrfToken = $_SESSION['csrf_token'];
       </form>
       <span>Page <?= $page; ?> of <?= $totalPages; ?> (<?= $totalFiltered; ?> task<?= $totalFiltered === 1 ? '' : 's'; ?>)</span>
       <?php if ($page > 1): ?>
-        <a class="ghost-btn" style="text-decoration:none;" href="<?= htmlspecialchars(buildIndexUrl($searchQuery, $page - 1, $perPage), ENT_QUOTES, 'UTF-8'); ?>">Prev</a>
+        <a class="ghost-btn" style="text-decoration:none;" href="<?= htmlspecialchars(buildIndexUrl($searchQuery, $page - 1, $perPage, '', $categoryFilter, $fromDate, $toDate), ENT_QUOTES, 'UTF-8'); ?>">Prev</a>
       <?php endif; ?>
       <?php if ($page < $totalPages): ?>
-        <a class="ghost-btn" style="text-decoration:none;" href="<?= htmlspecialchars(buildIndexUrl($searchQuery, $page + 1, $perPage), ENT_QUOTES, 'UTF-8'); ?>">Next</a>
+        <a class="ghost-btn" style="text-decoration:none;" href="<?= htmlspecialchars(buildIndexUrl($searchQuery, $page + 1, $perPage, '', $categoryFilter, $fromDate, $toDate), ENT_QUOTES, 'UTF-8'); ?>">Next</a>
       <?php endif; ?>
     </div>
 
@@ -648,8 +743,16 @@ $csrfToken = $_SESSION['csrf_token'];
       <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
       <input type="hidden" name="page" value="<?= (int) $page; ?>">
       <input type="hidden" name="per_page" value="<?= (int) $perPage; ?>">
+      <?php if ($searchQuery !== ''): ?><input type="hidden" name="q" value="<?= htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+      <?php if ($categoryFilter !== ''): ?><input type="hidden" name="category" value="<?= htmlspecialchars($categoryFilter, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+      <?php if ($fromDate !== ''): ?><input type="hidden" name="from" value="<?= htmlspecialchars($fromDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+      <?php if ($toDate !== ''): ?><input type="hidden" name="to" value="<?= htmlspecialchars($toDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
       <input name="title" type="text" maxlength="120" placeholder="Task title" required>
       <textarea name="description" maxlength="1000" placeholder="Task description (optional)"></textarea>
+      <div class="task-form-row">
+        <input name="category_name" type="text" maxlength="40" placeholder="Category (e.g. Work, Personal)">
+        <input name="category_color" type="color" value="#64748b" title="Category color">
+      </div>
       <input name="attachment" type="file" accept=".docx,.pdf,.txt,.md,.xlsx,.xls,.ppt,.pptx,.zip,.php,.js,.css,.html,.py">
       <div class="task-form-row"><button class="add-btn" type="submit">Add Task</button></div>
     </form>
@@ -671,11 +774,20 @@ $csrfToken = $_SESSION['csrf_token'];
                 <div class="task-line">
                   <span class="title-group">
                     <span class="task-title <?= !empty($task['done']) ? 'done' : ''; ?>"><?= htmlspecialchars((string) ($task['title'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></span>
+                    <?php if ((string) ($task['category_name'] ?? '') !== ''): ?>
+                      <span class="category-badge" style="border-color: <?= htmlspecialchars((string) ($task['category_color'] ?? DEFAULT_CATEGORY_COLOR), ENT_QUOTES, 'UTF-8'); ?>;">
+                        <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:<?= htmlspecialchars((string) ($task['category_color'] ?? DEFAULT_CATEGORY_COLOR), ENT_QUOTES, 'UTF-8'); ?>;"></span>
+                        <?= htmlspecialchars((string) $task['category_name'], ENT_QUOTES, 'UTF-8'); ?>
+                      </span>
+                    <?php endif; ?>
                     <button class="ghost-btn accordion-toggle js-details-toggle" type="button" aria-expanded="<?= $isEditing ? 'true' : 'false'; ?>">Details <?= $isEditing ? '▴' : '▾'; ?></button>
                   </span>
                   <span class="task-percent"><?= (int) ($task['progress'] ?? 0); ?>%</span>
                   <form method="get">
                     <?php if ($searchQuery !== ''): ?><input type="hidden" name="q" value="<?= htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+                    <?php if ($categoryFilter !== ''): ?><input type="hidden" name="category" value="<?= htmlspecialchars($categoryFilter, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+                    <?php if ($fromDate !== ''): ?><input type="hidden" name="from" value="<?= htmlspecialchars($fromDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+                    <?php if ($toDate !== ''): ?><input type="hidden" name="to" value="<?= htmlspecialchars($toDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
                     <input type="hidden" name="page" value="<?= (int) $page; ?>">
                     <input type="hidden" name="per_page" value="<?= (int) $perPage; ?>">
                     <input type="hidden" name="edit" value="<?= htmlspecialchars((string) ($task['id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
@@ -686,6 +798,9 @@ $csrfToken = $_SESSION['csrf_token'];
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
                     <input type="hidden" name="id" value="<?= htmlspecialchars((string) ($task['id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
                     <?php if ($searchQuery !== ''): ?><input type="hidden" name="q" value="<?= htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+                    <?php if ($categoryFilter !== ''): ?><input type="hidden" name="category" value="<?= htmlspecialchars($categoryFilter, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+                    <?php if ($fromDate !== ''): ?><input type="hidden" name="from" value="<?= htmlspecialchars($fromDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+                    <?php if ($toDate !== ''): ?><input type="hidden" name="to" value="<?= htmlspecialchars($toDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
                     <input type="hidden" name="page" value="<?= (int) $page; ?>">
                     <input type="hidden" name="per_page" value="<?= (int) $perPage; ?>">
                     <button class="ghost-btn" type="submit"><?= !empty($task['done']) ? 'Undo' : 'Done'; ?></button>
@@ -695,6 +810,9 @@ $csrfToken = $_SESSION['csrf_token'];
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
                     <input type="hidden" name="id" value="<?= htmlspecialchars((string) ($task['id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
                     <?php if ($searchQuery !== ''): ?><input type="hidden" name="q" value="<?= htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+                    <?php if ($categoryFilter !== ''): ?><input type="hidden" name="category" value="<?= htmlspecialchars($categoryFilter, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+                    <?php if ($fromDate !== ''): ?><input type="hidden" name="from" value="<?= htmlspecialchars($fromDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+                    <?php if ($toDate !== ''): ?><input type="hidden" name="to" value="<?= htmlspecialchars($toDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
                     <input type="hidden" name="page" value="<?= (int) $page; ?>">
                     <input type="hidden" name="per_page" value="<?= (int) $perPage; ?>">
                     <button class="danger-btn" type="submit">Delete</button>
@@ -702,22 +820,29 @@ $csrfToken = $_SESSION['csrf_token'];
                 </div>
 
                 <?php if ($isEditing): ?>
-                  <form class="task-form js-edit-form" method="post" autocomplete="off" data-cancel-url="<?= htmlspecialchars(buildIndexUrl($searchQuery, $page, $perPage), ENT_QUOTES, 'UTF-8'); ?>">
+                  <form class="task-form js-edit-form" method="post" autocomplete="off" data-cancel-url="<?= htmlspecialchars(buildIndexUrl($searchQuery, $page, $perPage, '', $categoryFilter, $fromDate, $toDate), ENT_QUOTES, 'UTF-8'); ?>">
                     <input type="hidden" name="action" value="editTask">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
                     <input type="hidden" name="id" value="<?= htmlspecialchars((string) ($task['id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
                     <?php if ($searchQuery !== ''): ?><input type="hidden" name="q" value="<?= htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+                    <?php if ($categoryFilter !== ''): ?><input type="hidden" name="category" value="<?= htmlspecialchars($categoryFilter, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+                    <?php if ($fromDate !== ''): ?><input type="hidden" name="from" value="<?= htmlspecialchars($fromDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+                    <?php if ($toDate !== ''): ?><input type="hidden" name="to" value="<?= htmlspecialchars($toDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
                     <input type="hidden" name="page" value="<?= (int) $page; ?>">
                     <input type="hidden" name="per_page" value="<?= (int) $perPage; ?>">
                     <input name="title" type="text" maxlength="120" required value="<?= htmlspecialchars((string) ($task['title'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
                     <textarea name="description" maxlength="1000" placeholder="Task description (optional)"><?= htmlspecialchars((string) ($task['description'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></textarea>
+                    <div class="task-form-row">
+                      <input name="category_name" type="text" maxlength="40" placeholder="Category" value="<?= htmlspecialchars((string) ($task['category_name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                      <input name="category_color" type="color" value="<?= htmlspecialchars((string) ($task['category_color'] ?? DEFAULT_CATEGORY_COLOR), ENT_QUOTES, 'UTF-8'); ?>" title="Category color">
+                    </div>
 
                     <div class="task-details js-task-details is-open">
                       <?php if (($task['description'] ?? '') !== ''): ?>
                         <p class="desc"><?= htmlspecialchars((string) $task['description'], ENT_QUOTES, 'UTF-8'); ?></p>
                       <?php endif; ?>
                       <?php if (is_array($task['attachment'] ?? null)): ?>
-                        <div class="task-attachment">Attachment: <a href="<?= htmlspecialchars(buildDownloadUrl($searchQuery, $page, $perPage, (string) $task['attachment']['stored']), ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars((string) $task['attachment']['name'], ENT_QUOTES, 'UTF-8'); ?></a></div>
+                        <div class="task-attachment">Attachment: <a href="<?= htmlspecialchars(buildDownloadUrl($searchQuery, $page, $perPage, (string) $task['attachment']['stored'], $categoryFilter, $fromDate, $toDate), ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars((string) $task['attachment']['name'], ENT_QUOTES, 'UTF-8'); ?></a></div>
                       <?php endif; ?>
                       <div class="slider-form">
                         <input class="js-progress-slider" type="range" name="progress" min="0" max="100" step="1" value="<?= (int) ($task['progress'] ?? 0); ?>">
@@ -727,7 +852,7 @@ $csrfToken = $_SESSION['csrf_token'];
 
                     <div class="task-form-row">
                       <button class="add-btn" type="submit">Save changes</button>
-                      <a class="danger-btn js-cancel-edit" href="<?= htmlspecialchars(buildIndexUrl($searchQuery, $page, $perPage), ENT_QUOTES, 'UTF-8'); ?>">Cancel</a>
+                      <a class="danger-btn js-cancel-edit" href="<?= htmlspecialchars(buildIndexUrl($searchQuery, $page, $perPage, '', $categoryFilter, $fromDate, $toDate), ENT_QUOTES, 'UTF-8'); ?>">Cancel</a>
                     </div>
                   </form>
                 <?php else: ?>
@@ -737,13 +862,16 @@ $csrfToken = $_SESSION['csrf_token'];
                     <?php endif; ?>
 
                     <?php if (is_array($task['attachment'] ?? null)): ?>
-                      <div class="task-attachment">Attachment: <a href="<?= htmlspecialchars(buildDownloadUrl($searchQuery, $page, $perPage, (string) $task['attachment']['stored']), ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars((string) $task['attachment']['name'], ENT_QUOTES, 'UTF-8'); ?></a></div>
+                      <div class="task-attachment">Attachment: <a href="<?= htmlspecialchars(buildDownloadUrl($searchQuery, $page, $perPage, (string) $task['attachment']['stored'], $categoryFilter, $fromDate, $toDate), ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars((string) $task['attachment']['name'], ENT_QUOTES, 'UTF-8'); ?></a></div>
                     <?php endif; ?>
                     <form class="slider-form" method="post">
                       <input type="hidden" name="action" value="updateProgress">
                       <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
                       <input type="hidden" name="id" value="<?= htmlspecialchars((string) ($task['id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
                       <?php if ($searchQuery !== ''): ?><input type="hidden" name="q" value="<?= htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+                      <?php if ($categoryFilter !== ''): ?><input type="hidden" name="category" value="<?= htmlspecialchars($categoryFilter, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+                      <?php if ($fromDate !== ''): ?><input type="hidden" name="from" value="<?= htmlspecialchars($fromDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+                      <?php if ($toDate !== ''): ?><input type="hidden" name="to" value="<?= htmlspecialchars($toDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
                       <input type="hidden" name="page" value="<?= (int) $page; ?>">
                       <input type="hidden" name="per_page" value="<?= (int) $perPage; ?>">
                       <input class="js-progress-slider" type="range" name="progress" min="0" max="100" step="1" value="<?= (int) ($task['progress'] ?? 0); ?>">
