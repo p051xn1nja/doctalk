@@ -11,6 +11,7 @@ const DEFAULT_PER_PAGE = 50;
 const MAX_PER_PAGE = 1000;
 const UPLOAD_DIR = DATA_DIR . '/uploads';
 const DEFAULT_CATEGORY_COLOR = '#64748b';
+const MAX_TASK_FILES = 10;
 
 configureSession();
 session_start();
@@ -103,18 +104,34 @@ function loadTasks(): array
         $categoryId = isset($task['category_id']) && preg_match('/^[a-f0-9]{24}$/', (string) $task['category_id']) === 1 ? (string) $task['category_id'] : '';
         $categoryName = isset($task['category_name']) ? sanitizeCategoryName((string) $task['category_name']) : '';
         $categoryColor = isset($task['category_color']) ? sanitizeCategoryColor((string) $task['category_color']) : DEFAULT_CATEGORY_COLOR;
-        $attachment = null;
-        if (isset($task['attachment']) && is_array($task['attachment'])) {
+        $attachments = [];
+        if (isset($task['attachments']) && is_array($task['attachments'])) {
+            foreach ($task['attachments'] as $attachmentItem) {
+                if (!is_array($attachmentItem)) {
+                    continue;
+                }
+                $attachmentName = isset($attachmentItem['name']) ? (string) $attachmentItem['name'] : '';
+                $attachmentStored = isset($attachmentItem['stored']) ? (string) $attachmentItem['stored'] : '';
+                if ($attachmentName !== '' && preg_match('/^[a-f0-9]{24}_[a-f0-9]{12}\.[a-z0-9]+$/', $attachmentStored) === 1) {
+                    $attachments[] = [
+                        'name' => $attachmentName,
+                        'stored' => $attachmentStored,
+                        'size' => isset($attachmentItem['size']) ? (int) $attachmentItem['size'] : 0,
+                    ];
+                }
+            }
+        } elseif (isset($task['attachment']) && is_array($task['attachment'])) {
             $attachmentName = isset($task['attachment']['name']) ? (string) $task['attachment']['name'] : '';
             $attachmentStored = isset($task['attachment']['stored']) ? (string) $task['attachment']['stored'] : '';
             if ($attachmentName !== '' && preg_match('/^[a-f0-9]{24}_[a-f0-9]{12}\.[a-z0-9]+$/', $attachmentStored) === 1) {
-                $attachment = [
+                $attachments[] = [
                     'name' => $attachmentName,
                     'stored' => $attachmentStored,
                     'size' => isset($task['attachment']['size']) ? (int) $task['attachment']['size'] : 0,
                 ];
             }
         }
+        $attachments = array_slice($attachments, 0, MAX_TASK_FILES);
 
         if (!preg_match('/^[a-f0-9]{24}$/', $id) || $title === '') {
             continue;
@@ -135,7 +152,7 @@ function loadTasks(): array
             'category_id' => $categoryId,
             'category_name' => $categoryName,
             'category_color' => $categoryColor,
-            'attachment' => $attachment,
+            'attachments' => $attachments,
         ];
     }
 
@@ -429,42 +446,67 @@ function deleteStoredAttachment(string $stored): void
     }
 }
 
-function storeUploadedAttachment(array $file, string $taskId): ?array
+function storeUploadedAttachments(array $fileInput, string $taskId, int $slotsAvailable): array
 {
-    if (!isset($file['error']) || (int) $file['error'] === UPLOAD_ERR_NO_FILE) {
-        return null;
+    if ($slotsAvailable <= 0) {
+        return [];
     }
 
-    if ((int) $file['error'] !== UPLOAD_ERR_OK || !isset($file['tmp_name']) || !is_string($file['tmp_name'])) {
-        throw new RuntimeException('Upload failed.');
-    }
+    $errors = $fileInput['error'] ?? null;
+    $tmpNames = $fileInput['tmp_name'] ?? null;
+    $names = $fileInput['name'] ?? null;
+    $sizes = $fileInput['size'] ?? null;
 
-    $allowedExtensions = ['docx', 'pdf', 'txt', 'md', 'xlsx', 'xls', 'ppt', 'pptx', 'zip', 'php', 'js', 'css', 'html', 'py'];
-    $originalName = isset($file['name']) ? basename((string) $file['name']) : '';
-    $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
-
-    if ($originalName === '' || !in_array($extension, $allowedExtensions, true)) {
-        throw new RuntimeException('Unsupported file type.');
+    if (!is_array($errors) || !is_array($tmpNames) || !is_array($names)) {
+        return [];
     }
 
     if (!is_dir(UPLOAD_DIR) && !mkdir(UPLOAD_DIR, 0700, true) && !is_dir(UPLOAD_DIR)) {
         throw new RuntimeException('Unable to create upload directory.');
     }
 
-    $storedName = $taskId . '_' . bin2hex(random_bytes(6)) . '.' . $extension;
-    $destination = UPLOAD_DIR . '/' . $storedName;
+    $allowedExtensions = ['docx', 'pdf', 'txt', 'md', 'xlsx', 'xls', 'ppt', 'pptx', 'zip', 'php', 'js', 'css', 'html', 'py'];
+    $storedFiles = [];
+    $count = min(count($errors), count($tmpNames), count($names));
 
-    if (!move_uploaded_file($file['tmp_name'], $destination)) {
-        throw new RuntimeException('Unable to store uploaded file.');
+    for ($i = 0; $i < $count; $i += 1) {
+        if (count($storedFiles) >= $slotsAvailable) {
+            break;
+        }
+
+        $error = (int) ($errors[$i] ?? UPLOAD_ERR_NO_FILE);
+        if ($error === UPLOAD_ERR_NO_FILE) {
+            continue;
+        }
+        if ($error !== UPLOAD_ERR_OK) {
+            throw new RuntimeException('One of the uploaded files failed to upload.');
+        }
+
+        $tmp = (string) ($tmpNames[$i] ?? '');
+        $originalName = basename((string) ($names[$i] ?? ''));
+        $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+
+        if ($tmp === '' || $originalName === '' || !in_array($extension, $allowedExtensions, true)) {
+            throw new RuntimeException('One of the uploaded files has an unsupported type.');
+        }
+
+        $storedName = $taskId . '_' . bin2hex(random_bytes(6)) . '.' . $extension;
+        $destination = UPLOAD_DIR . '/' . $storedName;
+
+        if (!move_uploaded_file($tmp, $destination)) {
+            throw new RuntimeException('Unable to store one of the uploaded files.');
+        }
+
+        @chmod($destination, 0600);
+
+        $storedFiles[] = [
+            'name' => $originalName,
+            'stored' => $storedName,
+            'size' => is_array($sizes) ? (int) ($sizes[$i] ?? 0) : 0,
+        ];
     }
 
-    @chmod($destination, 0600);
-
-    return [
-        'name' => $originalName,
-        'stored' => $storedName,
-        'size' => isset($file['size']) ? (int) $file['size'] : 0,
-    ];
+    return $storedFiles;
 }
 
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
@@ -494,8 +536,16 @@ if (preg_match('/^[a-f0-9]{24}$/', $editId) !== 1) {
 if (isset($_GET['download']) && is_string($_GET['download'])) {
     $requested = basename((string) $_GET['download']);
     foreach ($tasks as $task) {
-        $attachment = $task['attachment'] ?? null;
-        if (is_array($attachment) && ($attachment['stored'] ?? '') === $requested) {
+        $attachments = isset($task['attachments']) && is_array($task['attachments']) ? $task['attachments'] : [];
+        if ($attachments === [] && isset($task['attachment']) && is_array($task['attachment'])) {
+            $attachments = [$task['attachment']];
+        }
+
+        foreach ($attachments as $attachment) {
+            if (!is_array($attachment) || ($attachment['stored'] ?? '') !== $requested) {
+                continue;
+            }
+
             $filePath = UPLOAD_DIR . '/' . $requested;
             if (is_file($filePath)) {
                 header('Content-Type: application/octet-stream');
@@ -599,9 +649,9 @@ if ($method === 'POST') {
 
             if ($title !== '') {
                 $taskId = bin2hex(random_bytes(12));
-                $attachment = null;
+                $attachments = [];
                 if (isset($_FILES['attachment']) && is_array($_FILES['attachment'])) {
-                    $attachment = storeUploadedAttachment($_FILES['attachment'], $taskId);
+                    $attachments = storeUploadedAttachments($_FILES['attachment'], $taskId, MAX_TASK_FILES);
                 }
 
                 $tasks[] = [
@@ -614,7 +664,7 @@ if ($method === 'POST') {
                     'category_id' => $selectedCategory['id'] ?? '',
                     'category_name' => $selectedCategory['name'] ?? '',
                     'category_color' => $selectedCategory['color'] ?? DEFAULT_CATEGORY_COLOR,
-                    'attachment' => $attachment,
+                    'attachments' => $attachments,
                 ];
                 saveTasks($tasks);
             }
@@ -664,7 +714,7 @@ if ($method === 'POST') {
             $description = sanitizeTaskDescription((string) ($_POST['description'] ?? ''));
             $categoryId = (string) ($_POST['category_id'] ?? '');
             $selectedCategory = preg_match('/^[a-f0-9]{24}$/', $categoryId) === 1 ? findCategoryById($categories, $categoryId) : null;
-            $removeAttachment = isset($_POST['delete_attachment']) && (string) $_POST['delete_attachment'] === '1';
+            $deleteAttachments = isset($_POST['delete_attachments']) && is_array($_POST['delete_attachments']) ? array_map('strval', $_POST['delete_attachments']) : [];
             $progress = isset($_POST['progress']) ? (int) $_POST['progress'] : null;
             if ($progress !== null) {
                 $progress = max(0, min(100, $progress));
@@ -687,22 +737,32 @@ if ($method === 'POST') {
                         $task['done'] = $progress >= 100;
                     }
 
-                    $currentAttachment = is_array($task['attachment'] ?? null) ? $task['attachment'] : null;
-                    if ($removeAttachment && $currentAttachment !== null) {
-                        deleteStoredAttachment((string) ($currentAttachment['stored'] ?? ''));
-                        $task['attachment'] = null;
-                        $currentAttachment = null;
+                    $currentAttachments = isset($task['attachments']) && is_array($task['attachments']) ? $task['attachments'] : [];
+                    if ($currentAttachments === [] && isset($task['attachment']) && is_array($task['attachment'])) {
+                        $currentAttachments = [$task['attachment']];
                     }
 
-                    if (isset($_FILES['attachment']) && is_array($_FILES['attachment'])) {
-                        $newAttachment = storeUploadedAttachment($_FILES['attachment'], (string) ($task['id'] ?? $id));
-                        if ($newAttachment !== null) {
-                            if ($currentAttachment !== null) {
-                                deleteStoredAttachment((string) ($currentAttachment['stored'] ?? ''));
-                            }
-                            $task['attachment'] = $newAttachment;
+                    $keptAttachments = [];
+                    foreach ($currentAttachments as $attachmentItem) {
+                        if (!is_array($attachmentItem)) {
+                            continue;
                         }
+                        $stored = (string) ($attachmentItem['stored'] ?? '');
+                        if ($stored !== '' && in_array($stored, $deleteAttachments, true)) {
+                            deleteStoredAttachment($stored);
+                            continue;
+                        }
+                        $keptAttachments[] = $attachmentItem;
                     }
+
+                    $slotsAvailable = MAX_TASK_FILES - count($keptAttachments);
+                    if ($slotsAvailable > 0 && isset($_FILES['attachment']) && is_array($_FILES['attachment'])) {
+                        $newAttachments = storeUploadedAttachments($_FILES['attachment'], (string) ($task['id'] ?? $id), $slotsAvailable);
+                        $keptAttachments = array_merge($keptAttachments, $newAttachments);
+                    }
+
+                    $task['attachments'] = array_slice($keptAttachments, 0, MAX_TASK_FILES);
+                    $task['attachment'] = null;
 
                     break;
                 }
@@ -718,10 +778,18 @@ if ($method === 'POST') {
             $id = (string) ($_POST['id'] ?? '');
             if (preg_match('/^[a-f0-9]{24}$/', $id) === 1) {
                 foreach ($tasks as $task) {
-                    if (($task['id'] ?? '') === $id && is_array($task['attachment'] ?? null)) {
-                        $stored = (string) ($task['attachment']['stored'] ?? '');
-                        if ($stored !== '') {
-                            deleteStoredAttachment($stored);
+                    if (($task['id'] ?? '') !== $id) {
+                        continue;
+                    }
+
+                    $attachments = isset($task['attachments']) && is_array($task['attachments']) ? $task['attachments'] : [];
+                    if ($attachments === [] && is_array($task['attachment'] ?? null)) {
+                        $attachments = [$task['attachment']];
+                    }
+
+                    foreach ($attachments as $attachmentItem) {
+                        if (is_array($attachmentItem)) {
+                            deleteStoredAttachment((string) ($attachmentItem['stored'] ?? ''));
                         }
                     }
                 }
@@ -936,7 +1004,7 @@ $csrfToken = $_SESSION['csrf_token'];
           <?php endforeach; ?>
         </select>
       </div>
-      <input name="attachment" type="file" accept=".docx,.pdf,.txt,.md,.xlsx,.xls,.ppt,.pptx,.zip,.php,.js,.css,.html,.py">
+      <input name="attachment[]" type="file" multiple accept=".docx,.pdf,.txt,.md,.xlsx,.xls,.ppt,.pptx,.zip,.php,.js,.css,.html,.py">
       <div class="task-form-row"><button class="add-btn" type="submit">Add Task</button></div>
     </form>
 
@@ -1028,11 +1096,17 @@ $csrfToken = $_SESSION['csrf_token'];
                       <?php if (($task['description'] ?? '') !== ''): ?>
                         <p class="desc"><?= htmlspecialchars((string) $task['description'], ENT_QUOTES, 'UTF-8'); ?></p>
                       <?php endif; ?>
-                      <?php if (is_array($task['attachment'] ?? null)): ?>
-                        <div class="task-attachment">Attachment: <a href="<?= htmlspecialchars(buildDownloadUrl($searchQuery, $page, $perPage, (string) $task['attachment']['stored'], $categoryFilter, $fromDate, $toDate), ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars((string) $task['attachment']['name'], ENT_QUOTES, 'UTF-8'); ?></a></div>
-                        <label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" name="delete_attachment" value="1"> Remove current file</label>
+                      <?php $taskAttachments = isset($task['attachments']) && is_array($task['attachments']) ? $task['attachments'] : (is_array($task['attachment'] ?? null) ? [$task['attachment']] : []); ?>
+                      <?php if (count($taskAttachments) > 0): ?>
+                        <?php foreach ($taskAttachments as $attachmentItem): ?>
+                          <?php if (!is_array($attachmentItem)) { continue; } ?>
+                          <label style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                            <input type="checkbox" name="delete_attachments[]" value="<?= htmlspecialchars((string) ($attachmentItem['stored'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"> Delete
+                            <a class="task-attachment" href="<?= htmlspecialchars(buildDownloadUrl($searchQuery, $page, $perPage, (string) ($attachmentItem['stored'] ?? ''), $categoryFilter, $fromDate, $toDate), ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars((string) ($attachmentItem['name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></a>
+                          </label>
+                        <?php endforeach; ?>
                       <?php endif; ?>
-                      <input name="attachment" type="file" accept=".docx,.pdf,.txt,.md,.xlsx,.xls,.ppt,.pptx,.zip,.php,.js,.css,.html,.py">
+                      <input name="attachment[]" type="file" multiple accept=".docx,.pdf,.txt,.md,.xlsx,.xls,.ppt,.pptx,.zip,.php,.js,.css,.html,.py">
                       <div class="slider-form">
                         <input class="js-progress-slider" type="range" name="progress" min="0" max="100" step="1" value="<?= (int) ($task['progress'] ?? 0); ?>">
                         <strong class="js-progress-value"><?= (int) ($task['progress'] ?? 0); ?>%</strong>
@@ -1050,8 +1124,12 @@ $csrfToken = $_SESSION['csrf_token'];
                       <p class="desc"><?= htmlspecialchars((string) $task['description'], ENT_QUOTES, 'UTF-8'); ?></p>
                     <?php endif; ?>
 
-                    <?php if (is_array($task['attachment'] ?? null)): ?>
-                      <div class="task-attachment">Attachment: <a href="<?= htmlspecialchars(buildDownloadUrl($searchQuery, $page, $perPage, (string) $task['attachment']['stored'], $categoryFilter, $fromDate, $toDate), ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars((string) $task['attachment']['name'], ENT_QUOTES, 'UTF-8'); ?></a></div>
+                    <?php $taskAttachments = isset($task['attachments']) && is_array($task['attachments']) ? $task['attachments'] : (is_array($task['attachment'] ?? null) ? [$task['attachment']] : []); ?>
+                    <?php if (count($taskAttachments) > 0): ?>
+                      <?php foreach ($taskAttachments as $attachmentItem): ?>
+                        <?php if (!is_array($attachmentItem)) { continue; } ?>
+                        <div class="task-attachment"><a href="<?= htmlspecialchars(buildDownloadUrl($searchQuery, $page, $perPage, (string) ($attachmentItem['stored'] ?? ''), $categoryFilter, $fromDate, $toDate), ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars((string) ($attachmentItem['name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></a></div>
+                      <?php endforeach; ?>
                     <?php endif; ?>
                     <form class="slider-form" method="post">
                       <input type="hidden" name="action" value="updateProgress">
