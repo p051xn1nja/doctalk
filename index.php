@@ -708,6 +708,46 @@ if ($method === 'POST') {
             redirectToIndex($searchQuery, $page, $perPage, '', $categoryFilter, $fromDate, $toDate);
         }
 
+        if ($action === 'deleteAttachment') {
+            $id = (string) ($_POST['id'] ?? '');
+            $stored = (string) ($_POST['stored'] ?? '');
+
+            if (preg_match('/^[a-f0-9]{24}$/', $id) === 1 && $stored !== '') {
+                foreach ($tasks as &$task) {
+                    if (($task['id'] ?? '') !== $id) {
+                        continue;
+                    }
+
+                    $attachments = isset($task['attachments']) && is_array($task['attachments']) ? $task['attachments'] : [];
+                    if ($attachments === [] && is_array($task['attachment'] ?? null)) {
+                        $attachments = [$task['attachment']];
+                    }
+
+                    $kept = [];
+                    foreach ($attachments as $attachmentItem) {
+                        if (!is_array($attachmentItem)) {
+                            continue;
+                        }
+
+                        if ((string) ($attachmentItem['stored'] ?? '') === $stored) {
+                            deleteStoredAttachment($stored);
+                            continue;
+                        }
+
+                        $kept[] = $attachmentItem;
+                    }
+
+                    $task['attachments'] = $kept;
+                    $task['attachment'] = null;
+                    break;
+                }
+                unset($task);
+                saveTasks($tasks);
+            }
+
+            redirectToIndex($searchQuery, $page, $perPage, '', $categoryFilter, $fromDate, $toDate);
+        }
+
         if ($action === 'editTask') {
             $id = (string) ($_POST['id'] ?? '');
             $title = sanitizeTaskTitle((string) ($_POST['title'] ?? ''));
@@ -1005,6 +1045,7 @@ $csrfToken = $_SESSION['csrf_token'];
         </select>
       </div>
       <input name="attachment[]" type="file" multiple accept=".docx,.pdf,.txt,.md,.xlsx,.xls,.ppt,.pptx,.zip,.php,.js,.css,.html,.py">
+      <small style="color:#94a3b8;">Optional: upload up to 10 files.</small>
       <div class="task-form-row"><button class="add-btn" type="submit">Add Task</button></div>
     </form>
 
@@ -1128,7 +1169,20 @@ $csrfToken = $_SESSION['csrf_token'];
                     <?php if (count($taskAttachments) > 0): ?>
                       <?php foreach ($taskAttachments as $attachmentItem): ?>
                         <?php if (!is_array($attachmentItem)) { continue; } ?>
-                        <div class="task-attachment"><a href="<?= htmlspecialchars(buildDownloadUrl($searchQuery, $page, $perPage, (string) ($attachmentItem['stored'] ?? ''), $categoryFilter, $fromDate, $toDate), ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars((string) ($attachmentItem['name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></a></div>
+                        <form class="task-attachment" method="post" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                          <input type="hidden" name="action" value="deleteAttachment">
+                          <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
+                          <input type="hidden" name="id" value="<?= htmlspecialchars((string) ($task['id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                          <input type="hidden" name="stored" value="<?= htmlspecialchars((string) ($attachmentItem['stored'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                          <?php if ($searchQuery !== ''): ?><input type="hidden" name="q" value="<?= htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+                          <?php if ($categoryFilter !== ''): ?><input type="hidden" name="category" value="<?= htmlspecialchars($categoryFilter, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+                          <?php if ($fromDate !== ''): ?><input type="hidden" name="from" value="<?= htmlspecialchars($fromDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+                          <?php if ($toDate !== ''): ?><input type="hidden" name="to" value="<?= htmlspecialchars($toDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+                          <input type="hidden" name="page" value="<?= (int) $page; ?>">
+                          <input type="hidden" name="per_page" value="<?= (int) $perPage; ?>">
+                          <a href="<?= htmlspecialchars(buildDownloadUrl($searchQuery, $page, $perPage, (string) ($attachmentItem['stored'] ?? ''), $categoryFilter, $fromDate, $toDate), ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars((string) ($attachmentItem['name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></a>
+                          <button class="danger-btn" type="submit" style="padding:6px 10px;">Delete</button>
+                        </form>
                       <?php endforeach; ?>
                     <?php endif; ?>
                     <form class="slider-form" method="post">
