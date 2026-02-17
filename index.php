@@ -1244,6 +1244,26 @@ $csrfToken = $_SESSION['csrf_token'];
                   </form>
                 </div>
 
+                <?php if (!$isEditing): ?>
+                  <form class="task-form js-quick-attach-form" method="post" enctype="multipart/form-data" autocomplete="off" style="margin:8px 0 0 0;">
+                    <input type="hidden" name="action" value="addAttachment">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
+                    <input type="hidden" name="id" value="<?= htmlspecialchars((string) ($task['id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                    <?php if ($searchQuery !== ''): ?><input type="hidden" name="q" value="<?= htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+                    <?php if ($categoryFilter !== ''): ?><input type="hidden" name="category" value="<?= htmlspecialchars($categoryFilter, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+                    <?php if ($fromDate !== ''): ?><input type="hidden" name="from" value="<?= htmlspecialchars($fromDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+                    <?php if ($toDate !== ''): ?><input type="hidden" name="to" value="<?= htmlspecialchars($toDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+                    <input type="hidden" name="page" value="<?= (int) $page; ?>">
+                    <input type="hidden" name="per_page" value="<?= (int) $perPage; ?>">
+                    <div class="task-form-row" style="align-items:center;">
+                      <button class="ghost-btn js-quick-add-files" type="button">+ Add files</button>
+                      <button class="add-btn" type="submit">Upload files</button>
+                    </div>
+                    <input class="js-quick-task-attachments" name="attachment[]" type="file" multiple accept=".docx,.pdf,.txt,.md,.xlsx,.xls,.ppt,.pptx,.zip,.php,.js,.css,.html,.py" style="display:none;">
+                    <div class="selected-files js-quick-selected-files" aria-live="polite"></div>
+                  </form>
+                <?php endif; ?>
+
                 <?php if ($isEditing): ?>
                   <form class="task-form js-edit-form" method="post" autocomplete="off" enctype="multipart/form-data" data-cancel-url="<?= htmlspecialchars(buildIndexUrl($searchQuery, $page, $perPage, '', $categoryFilter, $fromDate, $toDate), ENT_QUOTES, 'UTF-8'); ?>">
                     <input type="hidden" name="action" value="editTask">
@@ -1322,23 +1342,6 @@ $csrfToken = $_SESSION['csrf_token'];
                         </form>
                       <?php endforeach; ?>
                     <?php endif; ?>
-                    <form class="task-form js-quick-attach-form" method="post" enctype="multipart/form-data" autocomplete="off" style="margin-top:8px;">
-                      <input type="hidden" name="action" value="addAttachment">
-                      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
-                      <input type="hidden" name="id" value="<?= htmlspecialchars((string) ($task['id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
-                      <?php if ($searchQuery !== ''): ?><input type="hidden" name="q" value="<?= htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
-                      <?php if ($categoryFilter !== ''): ?><input type="hidden" name="category" value="<?= htmlspecialchars($categoryFilter, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
-                      <?php if ($fromDate !== ''): ?><input type="hidden" name="from" value="<?= htmlspecialchars($fromDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
-                      <?php if ($toDate !== ''): ?><input type="hidden" name="to" value="<?= htmlspecialchars($toDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
-                      <input type="hidden" name="page" value="<?= (int) $page; ?>">
-                      <input type="hidden" name="per_page" value="<?= (int) $perPage; ?>">
-                      <div class="task-form-row" style="align-items:center;">
-                        <button class="ghost-btn js-quick-add-files" type="button">+ Add files</button>
-                        <button class="add-btn" type="submit">Upload</button>
-                      </div>
-                      <input class="js-quick-task-attachments" name="attachment[]" type="file" multiple accept=".docx,.pdf,.txt,.md,.xlsx,.xls,.ppt,.pptx,.zip,.php,.js,.css,.html,.py" style="display:none;">
-                      <div class="selected-files js-quick-selected-files" aria-live="polite"></div>
-                    </form>
                     <form class="slider-form" method="post">
                       <input type="hidden" name="action" value="updateProgress">
                       <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
