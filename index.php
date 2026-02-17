@@ -260,9 +260,9 @@ function findCategoryById(array $categories, string $categoryId): ?array
     return null;
 }
 
-function redirectToIndex(string $search = '', int $page = 1, int $perPage = DEFAULT_PER_PAGE, string $editId = '', string $categoryFilter = '', string $fromDate = '', string $toDate = ''): void
+function redirectToIndex(string $search = '', int $page = 1, int $perPage = DEFAULT_PER_PAGE, string $editId = '', string $categoryFilter = '', string $fromDate = '', string $toDate = '', string $statusFilter = ''): void
 {
-    header('Location: ' . buildIndexUrl($search, $page, $perPage, $editId, $categoryFilter, $fromDate, $toDate), true, 303);
+    header('Location: ' . buildIndexUrl($search, $page, $perPage, $editId, $categoryFilter, $fromDate, $toDate, $statusFilter), true, 303);
     exit;
 }
 
@@ -461,14 +461,14 @@ function parsePerPage(array $source): int
     return DEFAULT_PER_PAGE;
 }
 
-function buildDownloadUrl(string $searchQuery, int $page, int $perPage, string $storedName, string $categoryFilter = '', string $fromDate = '', string $toDate = ''): string
+function buildDownloadUrl(string $searchQuery, int $page, int $perPage, string $storedName, string $categoryFilter = '', string $fromDate = '', string $toDate = '', string $statusFilter = ''): string
 {
-    $base = buildIndexUrl($searchQuery, $page, $perPage, '', $categoryFilter, $fromDate, $toDate);
+    $base = buildIndexUrl($searchQuery, $page, $perPage, '', $categoryFilter, $fromDate, $toDate, $statusFilter);
     $joiner = strpos($base, '?') === false ? '?' : '&';
     return $base . $joiner . 'download=' . rawurlencode($storedName);
 }
 
-function buildIndexUrl(string $searchQuery, int $page, int $perPage, string $editId = '', string $categoryFilter = '', string $fromDate = '', string $toDate = ''): string
+function buildIndexUrl(string $searchQuery, int $page, int $perPage, string $editId = '', string $categoryFilter = '', string $fromDate = '', string $toDate = '', string $statusFilter = ''): string
 {
     $params = [];
     if ($searchQuery !== '') {
@@ -491,6 +491,9 @@ function buildIndexUrl(string $searchQuery, int $page, int $perPage, string $edi
     }
     if ($toDate !== '') {
         $params['to'] = $toDate;
+    }
+    if ($statusFilter !== '') {
+        $params['status'] = $statusFilter;
     }
 
     $url = appPath('index.php');
@@ -595,6 +598,10 @@ if (preg_match('/^[a-f0-9]{24}$/', $categoryFilter) !== 1) {
 }
 $fromDate = normalizeDateFilter((string) ($_GET['from'] ?? $_POST['from'] ?? ''));
 $toDate = normalizeDateFilter((string) ($_GET['to'] ?? $_POST['to'] ?? ''));
+$statusFilter = (string) ($_GET['status'] ?? $_POST['status'] ?? '');
+if (!in_array($statusFilter, ['', 'in_progress', 'completed'], true)) {
+    $statusFilter = '';
+}
 $perPage = parsePerPage($_GET + $_POST);
 $page = isset($_GET['page']) ? max(1, (int) $_GET['page']) : (isset($_POST['page']) ? max(1, (int) $_POST['page']) : 1);
 $editId = (string) ($_GET['edit'] ?? $_POST['edit'] ?? '');
@@ -737,7 +744,7 @@ if ($method === 'POST') {
                 saveTasks($tasks);
             }
 
-            redirectToIndex($searchQuery, 1, $perPage, '', $categoryFilter, $fromDate, $toDate);
+            redirectToIndex($searchQuery, 1, $perPage, '', $categoryFilter, $fromDate, $toDate, $statusFilter);
         }
 
         if ($action === 'toggle') {
@@ -753,7 +760,7 @@ if ($method === 'POST') {
                 saveTasks($tasks);
             }
 
-            redirectToIndex($searchQuery, $page, $perPage, '', $categoryFilter, $fromDate, $toDate);
+            redirectToIndex($searchQuery, $page, $perPage, '', $categoryFilter, $fromDate, $toDate, $statusFilter);
         }
 
         if ($action === 'updateProgress') {
@@ -773,7 +780,7 @@ if ($method === 'POST') {
                 saveTasks($tasks);
             }
 
-            redirectToIndex($searchQuery, $page, $perPage, '', $categoryFilter, $fromDate, $toDate);
+            redirectToIndex($searchQuery, $page, $perPage, '', $categoryFilter, $fromDate, $toDate, $statusFilter);
         }
 
         if ($action === 'deleteAttachment') {
@@ -813,7 +820,7 @@ if ($method === 'POST') {
                 saveTasks($tasks);
             }
 
-            redirectToIndex($searchQuery, $page, $perPage, '', $categoryFilter, $fromDate, $toDate);
+            redirectToIndex($searchQuery, $page, $perPage, '', $categoryFilter, $fromDate, $toDate, $statusFilter);
         }
 
         if ($action === 'addAttachment') {
@@ -844,7 +851,7 @@ if ($method === 'POST') {
                 saveTasks($tasks);
             }
 
-            redirectToIndex($searchQuery, $page, $perPage, '', $categoryFilter, $fromDate, $toDate);
+            redirectToIndex($searchQuery, $page, $perPage, '', $categoryFilter, $fromDate, $toDate, $statusFilter);
         }
 
         if ($action === 'editTask') {
@@ -909,7 +916,7 @@ if ($method === 'POST') {
                 saveTasks($tasks);
             }
 
-            redirectToIndex($searchQuery, $page, $perPage, '', $categoryFilter, $fromDate, $toDate);
+            redirectToIndex($searchQuery, $page, $perPage, '', $categoryFilter, $fromDate, $toDate, $statusFilter);
         }
 
 
@@ -936,7 +943,7 @@ if ($method === 'POST') {
                 saveTasks($tasks);
             }
 
-            redirectToIndex($searchQuery, $page, $perPage, '', $categoryFilter, $fromDate, $toDate);
+            redirectToIndex($searchQuery, $page, $perPage, '', $categoryFilter, $fromDate, $toDate, $statusFilter);
         }
 
         http_response_code(400);
@@ -947,7 +954,7 @@ if ($method === 'POST') {
     }
 }
 
-$filteredTasks = array_values(array_filter($tasks, static function (array $task) use ($searchQuery, $categoryFilter, $fromDate, $toDate): bool {
+$filteredTasks = array_values(array_filter($tasks, static function (array $task) use ($searchQuery, $categoryFilter, $fromDate, $toDate, $statusFilter): bool {
     if ($categoryFilter !== '' && (string) ($task['category_id'] ?? '') !== $categoryFilter) {
         return false;
     }
@@ -963,6 +970,14 @@ $filteredTasks = array_values(array_filter($tasks, static function (array $task)
     }
 
     if ($toDate !== '' && ($createdDate === '' || $createdDate > $toDate)) {
+        return false;
+    }
+
+    $isDone = (bool) ($task['done'] ?? false);
+    if ($statusFilter === 'completed' && !$isDone) {
+        return false;
+    }
+    if ($statusFilter === 'in_progress' && $isDone) {
         return false;
     }
 
@@ -1199,6 +1214,11 @@ $csrfToken = $_SESSION['csrf_token'];
           <option value="<?= htmlspecialchars((string) $category['id'], ENT_QUOTES, 'UTF-8'); ?>" <?= $categoryFilter === (string) $category['id'] ? 'selected' : ''; ?>><?= htmlspecialchars((string) $category['name'], ENT_QUOTES, 'UTF-8'); ?></option>
         <?php endforeach; ?>
       </select>
+      <select name="status">
+        <option value="" <?= $statusFilter === '' ? 'selected' : ''; ?>>All statuses</option>
+        <option value="in_progress" <?= $statusFilter === 'in_progress' ? 'selected' : ''; ?>>In progress</option>
+        <option value="completed" <?= $statusFilter === 'completed' ? 'selected' : ''; ?>>Completed</option>
+      </select>
       <label class="date-field">
         <input class="js-date-picker" name="from" type="date" value="<?= htmlspecialchars($fromDate, ENT_QUOTES, 'UTF-8'); ?>">
         <button class="js-date-open date-open-btn" type="button" aria-label="Open from date calendar">📅</button>
@@ -1209,7 +1229,7 @@ $csrfToken = $_SESSION['csrf_token'];
       </label>
       <input type="hidden" name="per_page" value="<?= (int) $perPage; ?>">
       <button class="ghost-btn" type="submit">Search</button>
-      <?php if ($searchQuery !== '' || $categoryFilter !== '' || $fromDate !== '' || $toDate !== ''): ?>
+      <?php if ($searchQuery !== '' || $categoryFilter !== '' || $statusFilter !== '' || $fromDate !== '' || $toDate !== ''): ?>
         <a class="ghost-btn" style="text-decoration:none;display:inline-flex;align-items:center;" href="<?= htmlspecialchars(buildIndexUrl('', 1, $perPage), ENT_QUOTES, 'UTF-8'); ?>">Clear</a>
       <?php endif; ?>
     </form>
@@ -1219,6 +1239,7 @@ $csrfToken = $_SESSION['csrf_token'];
       <form method="get" autocomplete="off">
         <?php if ($searchQuery !== ''): ?><input type="hidden" name="q" value="<?= htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
         <?php if ($categoryFilter !== ''): ?><input type="hidden" name="category" value="<?= htmlspecialchars($categoryFilter, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+        <?php if ($statusFilter !== ''): ?><input type="hidden" name="status" value="<?= htmlspecialchars($statusFilter, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
         <?php if ($fromDate !== ''): ?><input type="hidden" name="from" value="<?= htmlspecialchars($fromDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
         <?php if ($toDate !== ''): ?><input type="hidden" name="to" value="<?= htmlspecialchars($toDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
         <label for="per_page">Per page</label>
@@ -1231,10 +1252,10 @@ $csrfToken = $_SESSION['csrf_token'];
         <input type="number" name="per_page_custom" min="1" max="<?= MAX_PER_PAGE; ?>" placeholder="Custom" value="<?= $isCustomPerPage ? (int) $perPage : 50; ?>">
         <button class="ghost-btn" type="submit">Apply</button>
         <?php if ($page > 1): ?>
-          <a class="ghost-btn" style="text-decoration:none;" href="<?= htmlspecialchars(buildIndexUrl($searchQuery, $page - 1, $perPage, '', $categoryFilter, $fromDate, $toDate), ENT_QUOTES, 'UTF-8'); ?>">Prev</a>
+          <a class="ghost-btn" style="text-decoration:none;" href="<?= htmlspecialchars(buildIndexUrl($searchQuery, $page - 1, $perPage, '', $categoryFilter, $fromDate, $toDate, $statusFilter), ENT_QUOTES, 'UTF-8'); ?>">Prev</a>
         <?php endif; ?>
         <?php if ($page < $totalPages): ?>
-          <a class="ghost-btn" style="text-decoration:none;" href="<?= htmlspecialchars(buildIndexUrl($searchQuery, $page + 1, $perPage, '', $categoryFilter, $fromDate, $toDate), ENT_QUOTES, 'UTF-8'); ?>">Next</a>
+          <a class="ghost-btn" style="text-decoration:none;" href="<?= htmlspecialchars(buildIndexUrl($searchQuery, $page + 1, $perPage, '', $categoryFilter, $fromDate, $toDate, $statusFilter), ENT_QUOTES, 'UTF-8'); ?>">Next</a>
         <?php endif; ?>
       </form>
     </div>
@@ -1246,6 +1267,7 @@ $csrfToken = $_SESSION['csrf_token'];
       <input type="hidden" name="per_page" value="<?= (int) $perPage; ?>">
       <?php if ($searchQuery !== ''): ?><input type="hidden" name="q" value="<?= htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
       <?php if ($categoryFilter !== ''): ?><input type="hidden" name="category" value="<?= htmlspecialchars($categoryFilter, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+      <?php if ($statusFilter !== ''): ?><input type="hidden" name="status" value="<?= htmlspecialchars($statusFilter, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
       <?php if ($fromDate !== ''): ?><input type="hidden" name="from" value="<?= htmlspecialchars($fromDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
       <?php if ($toDate !== ''): ?><input type="hidden" name="to" value="<?= htmlspecialchars($toDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
       <input name="title" type="text" maxlength="120" placeholder="Task title" required>
@@ -1319,6 +1341,7 @@ $csrfToken = $_SESSION['csrf_token'];
                   <form method="get">
                     <?php if ($searchQuery !== ''): ?><input type="hidden" name="q" value="<?= htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
                     <?php if ($categoryFilter !== ''): ?><input type="hidden" name="category" value="<?= htmlspecialchars($categoryFilter, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+                    <?php if ($statusFilter !== ''): ?><input type="hidden" name="status" value="<?= htmlspecialchars($statusFilter, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
                     <?php if ($fromDate !== ''): ?><input type="hidden" name="from" value="<?= htmlspecialchars($fromDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
                     <?php if ($toDate !== ''): ?><input type="hidden" name="to" value="<?= htmlspecialchars($toDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
                     <input type="hidden" name="page" value="<?= (int) $page; ?>">
@@ -1332,6 +1355,7 @@ $csrfToken = $_SESSION['csrf_token'];
                     <input type="hidden" name="id" value="<?= htmlspecialchars((string) ($task['id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
                     <?php if ($searchQuery !== ''): ?><input type="hidden" name="q" value="<?= htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
                     <?php if ($categoryFilter !== ''): ?><input type="hidden" name="category" value="<?= htmlspecialchars($categoryFilter, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+                    <?php if ($statusFilter !== ''): ?><input type="hidden" name="status" value="<?= htmlspecialchars($statusFilter, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
                     <?php if ($fromDate !== ''): ?><input type="hidden" name="from" value="<?= htmlspecialchars($fromDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
                     <?php if ($toDate !== ''): ?><input type="hidden" name="to" value="<?= htmlspecialchars($toDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
                     <input type="hidden" name="page" value="<?= (int) $page; ?>">
@@ -1347,6 +1371,7 @@ $csrfToken = $_SESSION['csrf_token'];
                     <input type="hidden" name="id" value="<?= htmlspecialchars((string) ($task['id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
                     <?php if ($searchQuery !== ''): ?><input type="hidden" name="q" value="<?= htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
                     <?php if ($categoryFilter !== ''): ?><input type="hidden" name="category" value="<?= htmlspecialchars($categoryFilter, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+                    <?php if ($statusFilter !== ''): ?><input type="hidden" name="status" value="<?= htmlspecialchars($statusFilter, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
                     <?php if ($fromDate !== ''): ?><input type="hidden" name="from" value="<?= htmlspecialchars($fromDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
                     <?php if ($toDate !== ''): ?><input type="hidden" name="to" value="<?= htmlspecialchars($toDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
                     <input type="hidden" name="page" value="<?= (int) $page; ?>">
@@ -1359,6 +1384,7 @@ $csrfToken = $_SESSION['csrf_token'];
                     <input type="hidden" name="id" value="<?= htmlspecialchars((string) ($task['id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
                     <?php if ($searchQuery !== ''): ?><input type="hidden" name="q" value="<?= htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
                     <?php if ($categoryFilter !== ''): ?><input type="hidden" name="category" value="<?= htmlspecialchars($categoryFilter, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+                    <?php if ($statusFilter !== ''): ?><input type="hidden" name="status" value="<?= htmlspecialchars($statusFilter, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
                     <?php if ($fromDate !== ''): ?><input type="hidden" name="from" value="<?= htmlspecialchars($fromDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
                     <?php if ($toDate !== ''): ?><input type="hidden" name="to" value="<?= htmlspecialchars($toDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
                     <input type="hidden" name="page" value="<?= (int) $page; ?>">
@@ -1369,12 +1395,13 @@ $csrfToken = $_SESSION['csrf_token'];
 
 
                 <?php if ($isEditing): ?>
-                  <form class="task-form js-edit-form" method="post" autocomplete="off" enctype="multipart/form-data" data-cancel-url="<?= htmlspecialchars(buildIndexUrl($searchQuery, $page, $perPage, '', $categoryFilter, $fromDate, $toDate), ENT_QUOTES, 'UTF-8'); ?>">
+                  <form class="task-form js-edit-form" method="post" autocomplete="off" enctype="multipart/form-data" data-cancel-url="<?= htmlspecialchars(buildIndexUrl($searchQuery, $page, $perPage, '', $categoryFilter, $fromDate, $toDate, $statusFilter), ENT_QUOTES, 'UTF-8'); ?>">
                     <input type="hidden" name="action" value="editTask">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
                     <input type="hidden" name="id" value="<?= htmlspecialchars((string) ($task['id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
                     <?php if ($searchQuery !== ''): ?><input type="hidden" name="q" value="<?= htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
                     <?php if ($categoryFilter !== ''): ?><input type="hidden" name="category" value="<?= htmlspecialchars($categoryFilter, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+                    <?php if ($statusFilter !== ''): ?><input type="hidden" name="status" value="<?= htmlspecialchars($statusFilter, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
                     <?php if ($fromDate !== ''): ?><input type="hidden" name="from" value="<?= htmlspecialchars($fromDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
                     <?php if ($toDate !== ''): ?><input type="hidden" name="to" value="<?= htmlspecialchars($toDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
                     <input type="hidden" name="page" value="<?= (int) $page; ?>">
@@ -1400,7 +1427,7 @@ $csrfToken = $_SESSION['csrf_token'];
                           <?php if (!is_array($attachmentItem)) { continue; } ?>
                           <label style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                             <input type="checkbox" name="delete_attachments[]" value="<?= htmlspecialchars((string) ($attachmentItem['stored'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"> Delete
-                            <a class="task-attachment" href="<?= htmlspecialchars(buildDownloadUrl($searchQuery, $page, $perPage, (string) ($attachmentItem['stored'] ?? ''), $categoryFilter, $fromDate, $toDate), ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars((string) ($attachmentItem['name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></a>
+                            <a class="task-attachment" href="<?= htmlspecialchars(buildDownloadUrl($searchQuery, $page, $perPage, (string) ($attachmentItem['stored'] ?? ''), $categoryFilter, $fromDate, $toDate, $statusFilter), ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars((string) ($attachmentItem['name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></a>
                           </label>
                         <?php endforeach; ?>
                       <?php endif; ?>
@@ -1417,7 +1444,7 @@ $csrfToken = $_SESSION['csrf_token'];
 
                     <div class="task-form-row">
                       <button class="add-btn" type="submit">Save changes</button>
-                      <a class="danger-btn js-cancel-edit" href="<?= htmlspecialchars(buildIndexUrl($searchQuery, $page, $perPage, '', $categoryFilter, $fromDate, $toDate), ENT_QUOTES, 'UTF-8'); ?>">Cancel</a>
+                      <a class="danger-btn js-cancel-edit" href="<?= htmlspecialchars(buildIndexUrl($searchQuery, $page, $perPage, '', $categoryFilter, $fromDate, $toDate, $statusFilter), ENT_QUOTES, 'UTF-8'); ?>">Cancel</a>
                     </div>
                   </form>
                 <?php else: ?>
@@ -1441,7 +1468,7 @@ $csrfToken = $_SESSION['csrf_token'];
                           <?php if ($toDate !== ''): ?><input type="hidden" name="to" value="<?= htmlspecialchars($toDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
                           <input type="hidden" name="page" value="<?= (int) $page; ?>">
                           <input type="hidden" name="per_page" value="<?= (int) $perPage; ?>">
-                          <a href="<?= htmlspecialchars(buildDownloadUrl($searchQuery, $page, $perPage, (string) ($attachmentItem['stored'] ?? ''), $categoryFilter, $fromDate, $toDate), ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars((string) ($attachmentItem['name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></a>
+                          <a href="<?= htmlspecialchars(buildDownloadUrl($searchQuery, $page, $perPage, (string) ($attachmentItem['stored'] ?? ''), $categoryFilter, $fromDate, $toDate, $statusFilter), ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars((string) ($attachmentItem['name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></a>
                           <button class="danger-btn" type="submit" style="padding:6px 10px;">Delete</button>
                         </form>
                       <?php endforeach; ?>
