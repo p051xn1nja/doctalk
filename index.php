@@ -1235,9 +1235,7 @@ $csrfToken = $_SESSION['csrf_token'];
       </label>
       <input type="hidden" name="per_page" value="<?= (int) $perPage; ?>">
       <button class="ghost-btn" type="submit">Search</button>
-      <?php if ($searchQuery !== '' || $categoryFilter !== '' || $statusFilter !== '' || $fromDate !== '' || $toDate !== ''): ?>
-        <a class="ghost-btn" style="text-decoration:none;display:inline-flex;align-items:center;" href="<?= htmlspecialchars(buildIndexUrl('', 1, $perPage), ENT_QUOTES, 'UTF-8'); ?>">Clear</a>
-      <?php endif; ?>
+      <a class="ghost-btn" style="text-decoration:none;display:inline-flex;align-items:center;" href="<?= htmlspecialchars(buildIndexUrl('', 1, $perPage), ENT_QUOTES, 'UTF-8'); ?>">Clear</a>
     </form>
 
     <div class="pager">
