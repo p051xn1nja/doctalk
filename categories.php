@@ -6,6 +6,7 @@ const DATA_DIR = __DIR__ . '/data';
 const DATA_FILE = DATA_DIR . '/tasks.json';
 const CATEGORY_FILE = DATA_DIR . '/categories.json';
 const DEFAULT_CATEGORY_COLOR = '#64748b';
+const SESSION_LIFETIME = 86400; // 24 hours
 
 configureSession();
 session_start();
@@ -23,8 +24,11 @@ if (!isAuthenticated()) {
 function configureSession(): void
 {
     $basePath = appBasePath();
+
+    ini_set('session.gc_maxlifetime', (string) SESSION_LIFETIME);
+
     session_set_cookie_params([
-        'lifetime' => 0,
+        'lifetime' => SESSION_LIFETIME,
         'path' => $basePath === '' ? '/' : $basePath . '/',
         'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
         'httponly' => true,
