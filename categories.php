@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-const DATA_DIR = __DIR__ . '/data';
+const DATA_DIR = __DIR__ . '/../doctalk_data';
 const DATA_FILE = DATA_DIR . '/tasks.json';
 const CATEGORY_FILE = DATA_DIR . '/categories.json';
 const DEFAULT_CATEGORY_COLOR = '#64748b';
@@ -26,6 +26,8 @@ function configureSession(): void
     $basePath = appBasePath();
 
     ini_set('session.gc_maxlifetime', (string) SESSION_LIFETIME);
+    ini_set('session.use_strict_mode', '1');
+    ini_set('session.use_only_cookies', '1');
 
     session_set_cookie_params([
         'lifetime' => SESSION_LIFETIME,
@@ -58,9 +60,13 @@ function applySecurityHeaders(): void
     header('X-Frame-Options: DENY');
     header('Referrer-Policy: no-referrer');
     header('Permissions-Policy: geolocation=(), microphone=(), camera=()');
-    header("Content-Security-Policy: default-src 'self'; style-src 'self' 'unsafe-inline'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; object-src 'none'");
+    header("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; object-src 'none'");
     header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
     header('Pragma: no-cache');
+
+    if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
+        header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
+    }
 }
 
 function isAuthenticated(): bool

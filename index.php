@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-const DATA_DIR = __DIR__ . '/data';
+const DATA_DIR = __DIR__ . '/../doctalk_data';
 const DATA_FILE = DATA_DIR . '/tasks.json';
 const CATEGORY_FILE = DATA_DIR . '/categories.json';
 const MAX_TITLE_LENGTH = 120;
@@ -33,6 +33,8 @@ function configureSession(): void
     $basePath = appBasePath();
 
     ini_set('session.gc_maxlifetime', (string) SESSION_LIFETIME);
+    ini_set('session.use_strict_mode', '1');
+    ini_set('session.use_only_cookies', '1');
 
     session_set_cookie_params([
         'lifetime' => SESSION_LIFETIME,
@@ -67,9 +69,13 @@ function applySecurityHeaders(): void
     header('X-Frame-Options: DENY');
     header('Referrer-Policy: no-referrer');
     header('Permissions-Policy: geolocation=(), microphone=(), camera=()');
-    header("Content-Security-Policy: default-src 'self'; style-src 'self' 'unsafe-inline'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; object-src 'none'");
+    header("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; object-src 'none'");
     header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
     header('Pragma: no-cache');
+
+    if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
+        header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
+    }
 }
 
 function isAuthenticated(): bool
@@ -261,9 +267,9 @@ function findCategoryById(array $categories, string $categoryId): ?array
     return null;
 }
 
-function redirectToIndex(string $search = '', int $page = 1, int $perPage = DEFAULT_PER_PAGE, string $editId = '', string $categoryFilter = '', string $fromDate = '', string $toDate = '', string $statusFilter = ''): void
+function redirectToIndex(string $search = '', int $page = 1, int $perPage = DEFAULT_PER_PAGE, string $editId = '', string $categoryFilter = '', string $fromDate = '', string $toDate = '', string $statusFilter = '', string $anchor = ''): void
 {
-    header('Location: ' . buildIndexUrl($search, $page, $perPage, $editId, $categoryFilter, $fromDate, $toDate, $statusFilter), true, 303);
+    header('Location: ' . buildIndexUrl($search, $page, $perPage, $editId, $categoryFilter, $fromDate, $toDate, $statusFilter, $anchor), true, 303);
     exit;
 }
 
@@ -323,6 +329,12 @@ function normalizeDateFilter(string $date): string
 {
     $date = trim($date);
     return preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) === 1 ? $date : '';
+}
+
+function normalizeTaskAnchor(string $anchor): string
+{
+    $anchor = trim($anchor);
+    return preg_match('/^task-[a-f0-9]{24}$/', $anchor) === 1 ? $anchor : '';
 }
 
 function lowerSafe(string $value): string
@@ -493,7 +505,7 @@ function buildDownloadUrl(string $searchQuery, int $page, int $perPage, string $
     return $base . $joiner . 'download=' . rawurlencode($storedName);
 }
 
-function buildIndexUrl(string $searchQuery, int $page, int $perPage, string $editId = '', string $categoryFilter = '', string $fromDate = '', string $toDate = '', string $statusFilter = ''): string
+function buildIndexUrl(string $searchQuery, int $page, int $perPage, string $editId = '', string $categoryFilter = '', string $fromDate = '', string $toDate = '', string $statusFilter = '', string $anchor = ''): string
 {
     $params = [];
     if ($searchQuery !== '') {
@@ -524,6 +536,9 @@ function buildIndexUrl(string $searchQuery, int $page, int $perPage, string $edi
     $url = appPath('index.php');
     if ($params !== []) {
         $url .= '?' . http_build_query($params);
+    }
+    if ($anchor !== '') {
+        $url .= '#' . rawurlencode($anchor);
     }
 
     return $url;
@@ -561,7 +576,19 @@ function storeUploadedAttachments(array $fileInput, string $taskId, int $slotsAv
         throw new RuntimeException('Unable to create upload directory.');
     }
 
-    $allowedExtensions = ['docx', 'pdf', 'txt', 'md', 'xlsx', 'xls', 'ppt', 'pptx', 'zip', 'php', 'js', 'css', 'html', 'py'];
+    $allowedMimeByExtension = [
+        'docx' => ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+        'pdf' => ['application/pdf'],
+        'txt' => ['text/plain'],
+        'md' => ['text/markdown', 'text/plain'],
+        'xlsx' => ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+        'xls' => ['application/vnd.ms-excel', 'application/octet-stream'],
+        'ppt' => ['application/vnd.ms-powerpoint', 'application/octet-stream'],
+        'pptx' => ['application/vnd.openxmlformats-officedocument.presentationml.presentation'],
+        'zip' => ['application/zip', 'application/x-zip-compressed'],
+        'csv' => ['text/csv', 'text/plain'],
+        'json' => ['application/json', 'text/plain'],
+    ];
     $storedFiles = [];
     $count = min(count($errors), count($tmpNames), count($names));
 
@@ -586,12 +613,33 @@ function storeUploadedAttachments(array $fileInput, string $taskId, int $slotsAv
         $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
         $fileSize = is_array($sizes) ? (int) ($sizes[$i] ?? 0) : 0;
 
-        if ($tmp === '' || $originalName === '' || !in_array($extension, $allowedExtensions, true)) {
+        if ($tmp === '' || $originalName === '') {
             throw new RuntimeException('One of the uploaded files has an unsupported type.');
         }
 
         if ($fileSize <= 0 || $fileSize > MAX_UPLOAD_FILE_SIZE_BYTES) {
             throw new RuntimeException('One of the uploaded files exceeds the 25 MB limit.');
+        }
+
+        $allowedExtensions = array_keys($allowedMimeByExtension);
+        if (!in_array($extension, $allowedExtensions, true)) {
+            throw new RuntimeException('One of the uploaded files has an unsupported type.');
+        }
+
+        $detectedMime = '';
+        if (function_exists('finfo_open')) {
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            if ($finfo !== false) {
+                $detected = finfo_file($finfo, $tmp);
+                if (is_string($detected)) {
+                    $detectedMime = strtolower(trim($detected));
+                }
+                finfo_close($finfo);
+            }
+        }
+
+        if ($detectedMime !== '' && !in_array($detectedMime, $allowedMimeByExtension[$extension], true)) {
+            throw new RuntimeException('One of the uploaded files has an invalid MIME type.');
         }
 
         $storedName = $taskId . '_' . bin2hex(random_bytes(6)) . '.' . $extension;
@@ -641,6 +689,7 @@ $editId = (string) ($_GET['edit'] ?? $_POST['edit'] ?? '');
 if (preg_match('/^[a-f0-9]{24}$/', $editId) !== 1) {
     $editId = '';
 }
+$taskAnchor = normalizeTaskAnchor((string) ($_POST['task_anchor'] ?? ''));
 if (isset($_GET['download']) && is_string($_GET['download'])) {
     $requested = basename((string) $_GET['download']);
     foreach ($tasks as $task) {
@@ -656,8 +705,15 @@ if (isset($_GET['download']) && is_string($_GET['download'])) {
 
             $filePath = UPLOAD_DIR . '/' . $requested;
             if (is_file($filePath)) {
+                $downloadName = (string) ($attachment['name'] ?? 'attachment');
+                $asciiName = preg_replace('/[^A-Za-z0-9._-]/', '_', $downloadName) ?? 'attachment';
+                if ($asciiName === '') {
+                    $asciiName = 'attachment';
+                }
+
                 header('Content-Type: application/octet-stream');
-                header('Content-Disposition: attachment; filename="' . rawurlencode((string) ($attachment['name'] ?? 'attachment')) . '"');
+                header('X-Content-Type-Options: nosniff');
+                header("Content-Disposition: attachment; filename=\"" . $asciiName . "\"; filename*=UTF-8''" . rawurlencode($downloadName));
                 header('Content-Length: ' . (string) filesize($filePath));
                 readfile($filePath);
                 exit;
@@ -813,7 +869,7 @@ if ($method === 'POST') {
                 saveTasks($tasks);
             }
 
-            redirectToIndex($searchQuery, $page, $perPage, '', $categoryFilter, $fromDate, $toDate, $statusFilter);
+            redirectToIndex($searchQuery, $page, $perPage, '', $categoryFilter, $fromDate, $toDate, $statusFilter, $taskAnchor);
         }
 
         if ($action === 'deleteAttachment') {
@@ -1355,7 +1411,7 @@ $csrfToken = $_SESSION['csrf_token'];
       <div class="task-form-row" style="gap:8px; align-items:center;">
         <button class="ghost-btn js-new-task-add-files" type="button">+ Add files</button>
       </div>
-      <input id="new-task-attachments" class="js-new-task-attachments" name="attachment[]" type="file" multiple accept=".docx,.pdf,.txt,.md,.xlsx,.xls,.ppt,.pptx,.zip,.php,.js,.css,.html,.py" style="display:none;">
+      <input id="new-task-attachments" class="js-new-task-attachments" name="attachment[]" type="file" multiple accept=".docx,.pdf,.txt,.md,.xlsx,.xls,.ppt,.pptx,.zip,.csv,.json" style="display:none;">
       <div id="new-task-selected-files" class="selected-files" aria-live="polite"></div>
       <small style="color:#94a3b8;">Optional: upload up to 10 files, each up to 25 MB.</small>
       <div class="task-form-row"><button class="add-btn" type="submit">Add Task</button></div>
@@ -1396,8 +1452,10 @@ $csrfToken = $_SESSION['csrf_token'];
                       </div>
                       <ul class="day-tasks js-day-tasks <?= $dayHasEditing ? 'is-open' : ''; ?>">
                         <?php foreach ($dayGroup['tasks'] as $task): ?>
-              <?php $isEditing = $editId !== '' && $editId === (string) ($task['id'] ?? ''); ?>
-              <li class="task-item">
+              <?php $taskId = (string) ($task['id'] ?? ''); ?>
+              <?php $isEditing = $editId !== '' && $editId === $taskId; ?>
+              <?php $taskAnchor = 'task-' . $taskId; ?>
+              <li class="task-item" id="<?= htmlspecialchars($taskAnchor, ENT_QUOTES, 'UTF-8'); ?>">
                 <div class="task-line">
                   <span class="title-group">
                     <span class="task-title <?= !empty($task['done']) ? 'done' : ''; ?>"><?php if (!empty($task['done'])): ?><span style="color:#22c55e;font-weight:700;" aria-hidden="true">✓</span> <?php endif; ?><?= htmlspecialchars((string) ($task['title'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></span>
@@ -1413,7 +1471,8 @@ $csrfToken = $_SESSION['csrf_token'];
                   <form class="js-quick-attach-form" method="post" enctype="multipart/form-data" autocomplete="off" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                     <input type="hidden" name="action" value="addAttachment">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
-                    <input type="hidden" name="id" value="<?= htmlspecialchars((string) ($task['id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                    <input type="hidden" name="id" value="<?= htmlspecialchars($taskId, ENT_QUOTES, 'UTF-8'); ?>">
+                    <input type="hidden" name="task_anchor" value="<?= htmlspecialchars($taskAnchor, ENT_QUOTES, 'UTF-8'); ?>">
                     <?php if ($searchQuery !== ''): ?><input type="hidden" name="q" value="<?= htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
                     <?php if ($categoryFilter !== ''): ?><input type="hidden" name="category" value="<?= htmlspecialchars($categoryFilter, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
                     <?php if ($statusFilter !== ''): ?><input type="hidden" name="status" value="<?= htmlspecialchars($statusFilter, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
@@ -1423,13 +1482,14 @@ $csrfToken = $_SESSION['csrf_token'];
                     <input type="hidden" name="per_page" value="<?= (int) $perPage; ?>">
                     <button class="ghost-btn js-quick-add-files task-row-action-btn" type="button">+ Add files</button>
                     <button class="add-btn js-quick-upload-files" type="submit" style="display:none;">Upload files</button>
-                    <input class="js-quick-task-attachments" name="attachment[]" type="file" multiple accept=".docx,.pdf,.txt,.md,.xlsx,.xls,.ppt,.pptx,.zip,.php,.js,.css,.html,.py" style="display:none;">
+                    <input class="js-quick-task-attachments" name="attachment[]" type="file" multiple accept=".docx,.pdf,.txt,.md,.xlsx,.xls,.ppt,.pptx,.zip,.csv,.json" style="display:none;">
                     <div class="selected-files js-quick-selected-files" aria-live="polite" style="width:100%;"></div>
                   </form>
                   <form method="post" class="js-preserve-groups">
                     <input type="hidden" name="action" value="updateProgress">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
-                    <input type="hidden" name="id" value="<?= htmlspecialchars((string) ($task['id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                    <input type="hidden" name="id" value="<?= htmlspecialchars($taskId, ENT_QUOTES, 'UTF-8'); ?>">
+                    <input type="hidden" name="task_anchor" value="<?= htmlspecialchars($taskAnchor, ENT_QUOTES, 'UTF-8'); ?>">
                     <?php if ($searchQuery !== ''): ?><input type="hidden" name="q" value="<?= htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
                     <?php if ($categoryFilter !== ''): ?><input type="hidden" name="category" value="<?= htmlspecialchars($categoryFilter, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
                     <?php if ($statusFilter !== ''): ?><input type="hidden" name="status" value="<?= htmlspecialchars($statusFilter, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
@@ -1438,9 +1498,9 @@ $csrfToken = $_SESSION['csrf_token'];
                     <input type="hidden" name="page" value="<?= (int) $page; ?>">
                     <input type="hidden" name="per_page" value="<?= (int) $perPage; ?>">
                     <input type="hidden" name="progress" value="<?= !empty($task['done']) ? 0 : 100; ?>">
-                    <button class="ghost-btn task-row-action-btn" type="submit"><?= !empty($task['done']) ? 'Undo' : 'Done'; ?></button>
+                    <button class="add-btn task-row-action-btn" type="submit"><?= !empty($task['done']) ? 'Undo' : 'Done'; ?></button>
                   </form>
-                  <form method="get">
+                  <form method="get" action="<?= htmlspecialchars(buildIndexUrl($searchQuery, $page, $perPage, "", $categoryFilter, $fromDate, $toDate, $statusFilter, $taskAnchor), ENT_QUOTES, 'UTF-8'); ?>">
                     <?php if ($searchQuery !== ''): ?><input type="hidden" name="q" value="<?= htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
                     <?php if ($categoryFilter !== ''): ?><input type="hidden" name="category" value="<?= htmlspecialchars($categoryFilter, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
                     <?php if ($statusFilter !== ''): ?><input type="hidden" name="status" value="<?= htmlspecialchars($statusFilter, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
@@ -1448,8 +1508,8 @@ $csrfToken = $_SESSION['csrf_token'];
                     <?php if ($toDate !== ''): ?><input type="hidden" name="to" value="<?= htmlspecialchars($toDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
                     <input type="hidden" name="page" value="<?= (int) $page; ?>">
                     <input type="hidden" name="per_page" value="<?= (int) $perPage; ?>">
-                    <input type="hidden" name="edit" value="<?= htmlspecialchars((string) ($task['id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
-                    <button class="add-btn task-row-action-btn" type="submit">Edit</button>
+                    <input type="hidden" name="edit" value="<?= htmlspecialchars($taskId, ENT_QUOTES, 'UTF-8'); ?>">
+                    <button class="logout-btn task-row-action-btn" type="submit">Edit</button>
                   </form>
                   <form method="post">
                     <input type="hidden" name="action" value="delete">
@@ -1469,7 +1529,7 @@ $csrfToken = $_SESSION['csrf_token'];
 
 
                 <?php if ($isEditing): ?>
-                  <form class="task-form js-edit-form" method="post" autocomplete="off" enctype="multipart/form-data" data-cancel-url="<?= htmlspecialchars(buildIndexUrl($searchQuery, $page, $perPage, '', $categoryFilter, $fromDate, $toDate, $statusFilter), ENT_QUOTES, 'UTF-8'); ?>">
+                  <form class="task-form js-edit-form" method="post" autocomplete="off" enctype="multipart/form-data" data-cancel-url="<?= htmlspecialchars(buildIndexUrl($searchQuery, $page, $perPage, '', $categoryFilter, $fromDate, $toDate, $statusFilter), ENT_QUOTES, 'UTF-8'); ?>" data-focus-edit-description="true">
                     <input type="hidden" name="action" value="editTask">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
                     <input type="hidden" name="id" value="<?= htmlspecialchars((string) ($task['id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
@@ -1520,7 +1580,7 @@ $csrfToken = $_SESSION['csrf_token'];
                       <div class="task-form-row" style="align-items:center;">
                         <button class="ghost-btn js-edit-add-files" type="button">+ Add files</button>
                       </div>
-                      <input class="js-edit-task-attachments" name="attachment[]" type="file" multiple accept=".docx,.pdf,.txt,.md,.xlsx,.xls,.ppt,.pptx,.zip,.php,.js,.css,.html,.py" style="display:none;">
+                      <input class="js-edit-task-attachments" name="attachment[]" type="file" multiple accept=".docx,.pdf,.txt,.md,.xlsx,.xls,.ppt,.pptx,.zip,.csv,.json" style="display:none;">
                       <div class="selected-files js-edit-selected-files" aria-live="polite"></div>
                       <div class="slider-form">
                         <input class="js-progress-slider" type="range" name="progress" min="0" max="100" step="1" value="<?= (int) ($task['progress'] ?? 0); ?>">

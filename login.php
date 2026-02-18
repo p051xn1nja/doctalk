@@ -8,7 +8,8 @@ const SESSION_LIFETIME = 86400; // 24 hours
 
 configureSession();
 session_start();
-applySecurityHeaders();
+$cspScriptNonce = base64_encode(random_bytes(16));
+applySecurityHeaders($cspScriptNonce);
 
 if (!isset($_SESSION['csrf_token']) || !is_string($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
@@ -27,6 +28,8 @@ function configureSession(): void
     $basePath = appBasePath();
 
     ini_set('session.gc_maxlifetime', (string) SESSION_LIFETIME);
+    ini_set('session.use_strict_mode', '1');
+    ini_set('session.use_only_cookies', '1');
 
     session_set_cookie_params([
         'lifetime' => SESSION_LIFETIME,
@@ -55,15 +58,19 @@ function appPath(string $targetFile): string
     return ($basePath === '' ? '' : $basePath) . '/' . ltrim($targetFile, '/');
 }
 
-function applySecurityHeaders(): void
+function applySecurityHeaders(string $scriptNonce): void
 {
     header('X-Content-Type-Options: nosniff');
     header('X-Frame-Options: DENY');
     header('Referrer-Policy: no-referrer');
     header('Permissions-Policy: geolocation=(), microphone=(), camera=()');
-    header("Content-Security-Policy: default-src 'self'; style-src 'self' 'unsafe-inline'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; object-src 'none'");
+    header("Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-" . $scriptNonce . "'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; object-src 'none'");
     header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
     header('Pragma: no-cache');
+
+    if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
+        header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
+    }
 }
 
 function verifyCsrfToken(?string $submittedToken): bool
@@ -201,7 +208,43 @@ $csrfToken = $_SESSION['csrf_token'];
       font-size: 1rem;
     }
 
-    button {
+    .password-field {
+      position: relative;
+      margin-bottom: 14px;
+    }
+
+    .password-field input {
+      margin-bottom: 0;
+      padding-right: 44px;
+    }
+
+    .password-toggle {
+      position: absolute;
+      right: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 32px;
+      height: 32px;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--muted);
+      font-size: 1rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+
+    .password-toggle:hover,
+    .password-toggle:focus-visible {
+      background: #1e293b;
+      color: var(--text);
+      outline: none;
+    }
+
+    .login-submit {
       width: 100%;
       border: 0;
       border-radius: 12px;
@@ -238,10 +281,30 @@ $csrfToken = $_SESSION['csrf_token'];
       <input id="username" name="username" type="text" maxlength="64" required>
 
       <label for="password">Password</label>
-      <input id="password" name="password" type="password" maxlength="128" required>
+      <div class="password-field">
+        <input id="password" name="password" type="password" maxlength="128" required>
+        <button class="password-toggle" id="passwordToggle" type="button" aria-label="Show password" aria-pressed="false" aria-controls="password">👁</button>
+      </div>
 
-      <button type="submit">Sign in</button>
+      <button class="login-submit" type="submit">Sign in</button>
     </form>
   </main>
+  <script nonce="<?= htmlspecialchars($cspScriptNonce, ENT_QUOTES, 'UTF-8'); ?>">
+    (function () {
+      var passwordInput = document.getElementById('password');
+      var toggleButton = document.getElementById('passwordToggle');
+      if (!passwordInput || !toggleButton) {
+        return;
+      }
+
+      toggleButton.addEventListener('click', function () {
+        var revealing = passwordInput.type === 'password';
+        passwordInput.type = revealing ? 'text' : 'password';
+        toggleButton.textContent = revealing ? '🙈' : '👁';
+        toggleButton.setAttribute('aria-pressed', revealing ? 'true' : 'false');
+        toggleButton.setAttribute('aria-label', revealing ? 'Hide password' : 'Show password');
+      });
+    }());
+  </script>
 </body>
 </html>
