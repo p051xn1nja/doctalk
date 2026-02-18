@@ -261,9 +261,9 @@ function findCategoryById(array $categories, string $categoryId): ?array
     return null;
 }
 
-function redirectToIndex(string $search = '', int $page = 1, int $perPage = DEFAULT_PER_PAGE, string $editId = '', string $categoryFilter = '', string $fromDate = '', string $toDate = '', string $statusFilter = ''): void
+function redirectToIndex(string $search = '', int $page = 1, int $perPage = DEFAULT_PER_PAGE, string $editId = '', string $categoryFilter = '', string $fromDate = '', string $toDate = '', string $statusFilter = '', string $anchor = ''): void
 {
-    header('Location: ' . buildIndexUrl($search, $page, $perPage, $editId, $categoryFilter, $fromDate, $toDate, $statusFilter), true, 303);
+    header('Location: ' . buildIndexUrl($search, $page, $perPage, $editId, $categoryFilter, $fromDate, $toDate, $statusFilter, $anchor), true, 303);
     exit;
 }
 
@@ -323,6 +323,12 @@ function normalizeDateFilter(string $date): string
 {
     $date = trim($date);
     return preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) === 1 ? $date : '';
+}
+
+function normalizeTaskAnchor(string $anchor): string
+{
+    $anchor = trim($anchor);
+    return preg_match('/^task-[a-f0-9]{24}$/', $anchor) === 1 ? $anchor : '';
 }
 
 function lowerSafe(string $value): string
@@ -493,7 +499,7 @@ function buildDownloadUrl(string $searchQuery, int $page, int $perPage, string $
     return $base . $joiner . 'download=' . rawurlencode($storedName);
 }
 
-function buildIndexUrl(string $searchQuery, int $page, int $perPage, string $editId = '', string $categoryFilter = '', string $fromDate = '', string $toDate = '', string $statusFilter = ''): string
+function buildIndexUrl(string $searchQuery, int $page, int $perPage, string $editId = '', string $categoryFilter = '', string $fromDate = '', string $toDate = '', string $statusFilter = '', string $anchor = ''): string
 {
     $params = [];
     if ($searchQuery !== '') {
@@ -524,6 +530,9 @@ function buildIndexUrl(string $searchQuery, int $page, int $perPage, string $edi
     $url = appPath('index.php');
     if ($params !== []) {
         $url .= '?' . http_build_query($params);
+    }
+    if ($anchor !== '') {
+        $url .= '#' . rawurlencode($anchor);
     }
 
     return $url;
@@ -641,6 +650,7 @@ $editId = (string) ($_GET['edit'] ?? $_POST['edit'] ?? '');
 if (preg_match('/^[a-f0-9]{24}$/', $editId) !== 1) {
     $editId = '';
 }
+$taskAnchor = normalizeTaskAnchor((string) ($_POST['task_anchor'] ?? ''));
 if (isset($_GET['download']) && is_string($_GET['download'])) {
     $requested = basename((string) $_GET['download']);
     foreach ($tasks as $task) {
@@ -813,7 +823,7 @@ if ($method === 'POST') {
                 saveTasks($tasks);
             }
 
-            redirectToIndex($searchQuery, $page, $perPage, '', $categoryFilter, $fromDate, $toDate, $statusFilter);
+            redirectToIndex($searchQuery, $page, $perPage, '', $categoryFilter, $fromDate, $toDate, $statusFilter, $taskAnchor);
         }
 
         if ($action === 'deleteAttachment') {
@@ -1396,8 +1406,10 @@ $csrfToken = $_SESSION['csrf_token'];
                       </div>
                       <ul class="day-tasks js-day-tasks <?= $dayHasEditing ? 'is-open' : ''; ?>">
                         <?php foreach ($dayGroup['tasks'] as $task): ?>
-              <?php $isEditing = $editId !== '' && $editId === (string) ($task['id'] ?? ''); ?>
-              <li class="task-item">
+              <?php $taskId = (string) ($task['id'] ?? ''); ?>
+              <?php $isEditing = $editId !== '' && $editId === $taskId; ?>
+              <?php $taskAnchor = 'task-' . $taskId; ?>
+              <li class="task-item" id="<?= htmlspecialchars($taskAnchor, ENT_QUOTES, 'UTF-8'); ?>">
                 <div class="task-line">
                   <span class="title-group">
                     <span class="task-title <?= !empty($task['done']) ? 'done' : ''; ?>"><?php if (!empty($task['done'])): ?><span style="color:#22c55e;font-weight:700;" aria-hidden="true">✓</span> <?php endif; ?><?= htmlspecialchars((string) ($task['title'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></span>
@@ -1413,7 +1425,8 @@ $csrfToken = $_SESSION['csrf_token'];
                   <form class="js-quick-attach-form" method="post" enctype="multipart/form-data" autocomplete="off" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                     <input type="hidden" name="action" value="addAttachment">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
-                    <input type="hidden" name="id" value="<?= htmlspecialchars((string) ($task['id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                    <input type="hidden" name="id" value="<?= htmlspecialchars($taskId, ENT_QUOTES, 'UTF-8'); ?>">
+                    <input type="hidden" name="task_anchor" value="<?= htmlspecialchars($taskAnchor, ENT_QUOTES, 'UTF-8'); ?>">
                     <?php if ($searchQuery !== ''): ?><input type="hidden" name="q" value="<?= htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
                     <?php if ($categoryFilter !== ''): ?><input type="hidden" name="category" value="<?= htmlspecialchars($categoryFilter, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
                     <?php if ($statusFilter !== ''): ?><input type="hidden" name="status" value="<?= htmlspecialchars($statusFilter, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
@@ -1429,7 +1442,8 @@ $csrfToken = $_SESSION['csrf_token'];
                   <form method="post" class="js-preserve-groups">
                     <input type="hidden" name="action" value="updateProgress">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
-                    <input type="hidden" name="id" value="<?= htmlspecialchars((string) ($task['id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                    <input type="hidden" name="id" value="<?= htmlspecialchars($taskId, ENT_QUOTES, 'UTF-8'); ?>">
+                    <input type="hidden" name="task_anchor" value="<?= htmlspecialchars($taskAnchor, ENT_QUOTES, 'UTF-8'); ?>">
                     <?php if ($searchQuery !== ''): ?><input type="hidden" name="q" value="<?= htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
                     <?php if ($categoryFilter !== ''): ?><input type="hidden" name="category" value="<?= htmlspecialchars($categoryFilter, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
                     <?php if ($statusFilter !== ''): ?><input type="hidden" name="status" value="<?= htmlspecialchars($statusFilter, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
@@ -1438,7 +1452,7 @@ $csrfToken = $_SESSION['csrf_token'];
                     <input type="hidden" name="page" value="<?= (int) $page; ?>">
                     <input type="hidden" name="per_page" value="<?= (int) $perPage; ?>">
                     <input type="hidden" name="progress" value="<?= !empty($task['done']) ? 0 : 100; ?>">
-                    <button class="ghost-btn task-row-action-btn" type="submit"><?= !empty($task['done']) ? 'Undo' : 'Done'; ?></button>
+                    <button class="add-btn task-row-action-btn" type="submit"><?= !empty($task['done']) ? 'Undo' : 'Done'; ?></button>
                   </form>
                   <form method="get">
                     <?php if ($searchQuery !== ''): ?><input type="hidden" name="q" value="<?= htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
@@ -1448,8 +1462,8 @@ $csrfToken = $_SESSION['csrf_token'];
                     <?php if ($toDate !== ''): ?><input type="hidden" name="to" value="<?= htmlspecialchars($toDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
                     <input type="hidden" name="page" value="<?= (int) $page; ?>">
                     <input type="hidden" name="per_page" value="<?= (int) $perPage; ?>">
-                    <input type="hidden" name="edit" value="<?= htmlspecialchars((string) ($task['id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
-                    <button class="add-btn task-row-action-btn" type="submit">Edit</button>
+                    <input type="hidden" name="edit" value="<?= htmlspecialchars($taskId, ENT_QUOTES, 'UTF-8'); ?>">
+                    <button class="logout-btn task-row-action-btn" type="submit">Edit</button>
                   </form>
                   <form method="post">
                     <input type="hidden" name="action" value="delete">
