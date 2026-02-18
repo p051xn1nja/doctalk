@@ -1115,6 +1115,7 @@ $csrfToken = $_SESSION['csrf_token'];
     .search-row input, .search-row button, .search-row select, .task-form input, .task-form select, .task-form textarea, .task-form button { font: inherit; }
     .search-row input { flex:1; min-width:220px; }
     .search-filter-pair { display:flex; gap:10px; align-items:center; flex:0 0 auto; min-width:360px; }
+    .search-actions { display:flex; gap:10px; }
     .search-filter-pair select { flex:1; min-width:0; }
     .search-row-break { flex-basis:100%; height:0; }
     .date-field { position:relative; min-width:170px; flex:1; }
@@ -1217,8 +1218,22 @@ $csrfToken = $_SESSION['csrf_token'];
 
     @media (max-width: 780px) {
       body { padding:14px; }
-      .app { padding:14px; border-radius:16px; }
-      .top-bar { position:static; margin:0 0 12px; padding:0; background:transparent; backdrop-filter:none; }
+      .app { padding:14px; border-radius:16px; overflow:hidden; }
+      .top-bar { position:static; margin:0 0 12px; padding:0; background:transparent; backdrop-filter:none; flex-wrap:wrap; }
+      .top-bar > h1 { width:100%; }
+
+      .search-row > input[type="text"],
+      .search-filter-pair,
+      .date-field,
+      .search-actions,
+      .search-actions .ghost-btn {
+        width:100%;
+      }
+      .search-row input { min-width:0; }
+      .search-filter-pair { min-width:0; display:grid; grid-template-columns:1fr 1fr; }
+      .date-field { min-width:0; }
+      .search-row-break { display:none; }
+
       .pager form, .task-form-row { width:100%; }
       .pager form { flex-wrap:wrap; }
       .task-line { align-items:flex-start; }
@@ -1271,10 +1286,12 @@ $csrfToken = $_SESSION['csrf_token'];
         <button class="js-date-open date-open-btn" type="button" aria-label="Open to date calendar">📅</button>
       </label>
       <input type="hidden" name="per_page" value="<?= (int) $perPage; ?>">
-      <button class="ghost-btn" type="submit">Search</button>
-      <?php if ($searchQuery !== '' || $categoryFilter !== '' || $statusFilter !== '' || $fromDate !== '' || $toDate !== ''): ?>
-        <a class="ghost-btn" style="text-decoration:none;display:inline-flex;align-items:center;" href="<?= htmlspecialchars(buildIndexUrl('', 1, $perPage), ENT_QUOTES, 'UTF-8'); ?>">Clear</a>
-      <?php endif; ?>
+      <div class="search-actions">
+        <button class="ghost-btn search-submit-btn" type="submit">Search</button>
+        <?php if ($searchQuery !== '' || $categoryFilter !== '' || $statusFilter !== '' || $fromDate !== '' || $toDate !== ''): ?>
+          <a class="ghost-btn search-clear-btn" style="text-decoration:none;display:inline-flex;align-items:center;" href="<?= htmlspecialchars(buildIndexUrl('', 1, $perPage), ENT_QUOTES, 'UTF-8'); ?>">Clear</a>
+        <?php endif; ?>
+      </div>
     </form>
 
     <div class="pager">
