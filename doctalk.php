@@ -856,6 +856,72 @@ for (let i = 1; i <= totalPages; i++) {
 document.getElementById("clearButton").addEventListener("click", () => {
 document.getElementById("userInput").value = ""; // Clear the input field only
 });
+
+// Keep task menus expanded after Undo/Done actions and place Edit after action buttons.
+document.addEventListener("DOMContentLoaded", () => {
+    const captureExpandedState = () => {
+        const openDetails = Array.from(document.querySelectorAll("details[open]"));
+        const expandedNodes = Array.from(document.querySelectorAll('[aria-expanded="true"]'));
+
+        return { openDetails, expandedNodes };
+    };
+
+    const restoreExpandedState = (state) => {
+        state.openDetails.forEach((node) => {
+            if (document.contains(node)) {
+                node.setAttribute("open", "open");
+            }
+        });
+
+        state.expandedNodes.forEach((node) => {
+            if (document.contains(node)) {
+                node.setAttribute("aria-expanded", "true");
+            }
+        });
+    };
+
+    const isActionButton = (button, action) => {
+        const text = (button.textContent || "").trim().toLowerCase();
+        return text === action || button.dataset.action === action;
+    };
+
+    const findSiblingEditButton = (button) => {
+        const container = button.closest(".task-actions, .actions, .menu-actions") || button.parentElement;
+        if (!container) {
+            return null;
+        }
+
+        return Array.from(container.querySelectorAll("button")).find((candidate) => {
+            const text = (candidate.textContent || "").trim().toLowerCase();
+            return text === "edit" || candidate.dataset.action === "edit";
+        }) || null;
+    };
+
+    document.body.addEventListener("click", (event) => {
+        const button = event.target.closest("button");
+        if (!button) {
+            return;
+        }
+
+        const isUndoOrDone = isActionButton(button, "undo") || isActionButton(button, "done");
+        if (!isUndoOrDone) {
+            return;
+        }
+
+        const previousState = captureExpandedState();
+        const editButton = findSiblingEditButton(button);
+
+        requestAnimationFrame(() => {
+            restoreExpandedState(previousState);
+
+            if (editButton && document.contains(editButton)) {
+                button.insertAdjacentElement("afterend", editButton);
+                editButton.style.backgroundColor = "#008000";
+                editButton.style.color = "#ffffff";
+            }
+        });
+    });
+});
 </script>
 </body>
 </html>
