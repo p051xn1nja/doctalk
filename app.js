@@ -53,6 +53,64 @@ document.addEventListener('DOMContentLoaded', function () {
     toggle.textContent = open ? 'Day ▴' : 'Day ▾';
   }
 
+  function setOpenState(element, shouldOpen) {
+    if (!element) {
+      return;
+    }
+
+    if (shouldOpen) {
+      addClass(element, 'is-open');
+    } else {
+      removeClass(element, 'is-open');
+    }
+  }
+
+  function expandAllGroups() {
+    var years = document.querySelectorAll('.year-group');
+    for (var yIndex = 0; yIndex < years.length; yIndex += 1) {
+      var year = years[yIndex];
+      setOpenState(year.querySelector('.js-year-months'), true);
+      syncYearToggle(year);
+    }
+
+    var months = document.querySelectorAll('.month-group');
+    for (var mIndex = 0; mIndex < months.length; mIndex += 1) {
+      var month = months[mIndex];
+      setOpenState(month.querySelector('.js-month-days'), true);
+      syncMonthToggle(month);
+    }
+
+    var days = document.querySelectorAll('.day-group');
+    for (var dIndex = 0; dIndex < days.length; dIndex += 1) {
+      var day = days[dIndex];
+      setOpenState(day.querySelector('.js-day-tasks'), true);
+      syncDayToggle(day);
+    }
+  }
+
+  function expandCurrentMonth() {
+    var currentMonthKey = new Date().toISOString().slice(0, 7);
+    var targetMonth = document.querySelector('.month-group[data-month-key="' + currentMonthKey + '"]');
+    if (!targetMonth) {
+      return;
+    }
+
+    var parentYear = targetMonth.closest('.year-group');
+    if (parentYear) {
+      setOpenState(parentYear.querySelector('.js-year-months'), true);
+      syncYearToggle(parentYear);
+    }
+
+    setOpenState(targetMonth.querySelector('.js-month-days'), true);
+    syncMonthToggle(targetMonth);
+
+    var dayGroups = targetMonth.querySelectorAll('.day-group');
+    for (var index = 0; index < dayGroups.length; index += 1) {
+      setOpenState(dayGroups[index].querySelector('.js-day-tasks'), true);
+      syncDayToggle(dayGroups[index]);
+    }
+  }
+
   function syncToggle(item) {
     var toggle = item.querySelector('.js-details-toggle');
     var details = item.querySelector('.js-task-details');
@@ -65,6 +123,111 @@ document.addEventListener('DOMContentLoaded', function () {
     toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
     toggle.textContent = open ? 'Details ▴' : 'Details ▾';
   }
+
+
+  var groupStateStorageKey = 'taskflow-group-open-state';
+
+  function saveGroupOpenState() {
+    if (typeof window === 'undefined' || !window.sessionStorage) {
+      return;
+    }
+
+    var yearOpen = [];
+    var yearGroups = document.querySelectorAll('.year-group');
+    for (var yIndex = 0; yIndex < yearGroups.length; yIndex += 1) {
+      var yearGroup = yearGroups[yIndex];
+      var yearKey = yearGroup.getAttribute('data-year-key') || '';
+      var yearMonths = yearGroup.querySelector('.js-year-months');
+      if (yearKey !== '' && yearMonths && hasClass(yearMonths, 'is-open')) {
+        yearOpen.push(yearKey);
+      }
+    }
+
+    var monthOpen = [];
+    var monthGroups = document.querySelectorAll('.month-group');
+    for (var mIndex = 0; mIndex < monthGroups.length; mIndex += 1) {
+      var monthGroup = monthGroups[mIndex];
+      var monthKey = monthGroup.getAttribute('data-month-key') || '';
+      var monthDays = monthGroup.querySelector('.js-month-days');
+      if (monthKey !== '' && monthDays && hasClass(monthDays, 'is-open')) {
+        monthOpen.push(monthKey);
+      }
+    }
+
+    var dayOpen = [];
+    var dayGroups = document.querySelectorAll('.day-group');
+    for (var dIndex = 0; dIndex < dayGroups.length; dIndex += 1) {
+      var dayGroup = dayGroups[dIndex];
+      var dayKey = dayGroup.getAttribute('data-day-key') || '';
+      var parentMonth = dayGroup.closest('.month-group');
+      var monthKeyForDay = parentMonth ? (parentMonth.getAttribute('data-month-key') || '') : '';
+      var dayTasks = dayGroup.querySelector('.js-day-tasks');
+      if (dayKey !== '' && monthKeyForDay !== '' && dayTasks && hasClass(dayTasks, 'is-open')) {
+        dayOpen.push(monthKeyForDay + '|' + dayKey);
+      }
+    }
+
+    var payload = {
+      yearOpen: yearOpen,
+      monthOpen: monthOpen,
+      dayOpen: dayOpen,
+    };
+
+    window.sessionStorage.setItem(groupStateStorageKey, JSON.stringify(payload));
+  }
+
+  function restoreGroupOpenState() {
+    if (typeof window === 'undefined' || !window.sessionStorage) {
+      return;
+    }
+
+    var raw = window.sessionStorage.getItem(groupStateStorageKey);
+    if (!raw) {
+      return;
+    }
+
+    var payload;
+    try {
+      payload = JSON.parse(raw);
+    } catch (error) {
+      return;
+    }
+
+    var yearOpen = payload && Array.isArray(payload.yearOpen) ? payload.yearOpen : [];
+    var monthOpen = payload && Array.isArray(payload.monthOpen) ? payload.monthOpen : [];
+    var dayOpen = payload && Array.isArray(payload.dayOpen) ? payload.dayOpen : [];
+
+    for (var yRestore = 0; yRestore < yearOpen.length; yRestore += 1) {
+      var yearNode = document.querySelector('.year-group[data-year-key="' + yearOpen[yRestore] + '"]');
+      if (yearNode) {
+        setOpenState(yearNode.querySelector('.js-year-months'), true);
+      }
+    }
+
+    for (var mRestore = 0; mRestore < monthOpen.length; mRestore += 1) {
+      var monthNode = document.querySelector('.month-group[data-month-key="' + monthOpen[mRestore] + '"]');
+      if (monthNode) {
+        setOpenState(monthNode.querySelector('.js-month-days'), true);
+      }
+    }
+
+    for (var dRestore = 0; dRestore < dayOpen.length; dRestore += 1) {
+      var parts = String(dayOpen[dRestore]).split('|');
+      if (parts.length !== 2) {
+        continue;
+      }
+      var monthNodeForDay = document.querySelector('.month-group[data-month-key="' + parts[0] + '"]');
+      if (!monthNodeForDay) {
+        continue;
+      }
+      var dayNode = monthNodeForDay.querySelector('.day-group[data-day-key="' + parts[1] + '"]');
+      if (dayNode) {
+        setOpenState(dayNode.querySelector('.js-day-tasks'), true);
+      }
+    }
+  }
+
+  restoreGroupOpenState();
 
   var yearSections = document.querySelectorAll('.year-group');
   for (var y = 0; y < yearSections.length; y += 1) {
@@ -79,6 +242,24 @@ document.addEventListener('DOMContentLoaded', function () {
   var daySections = document.querySelectorAll('.day-group');
   for (var d = 0; d < daySections.length; d += 1) {
     syncDayToggle(daySections[d]);
+  }
+
+  var expandAllButton = document.querySelector('.js-expand-all-groups');
+  if (expandAllButton) {
+    expandAllButton.addEventListener('click', function (event) {
+      expandAllGroups();
+      saveGroupOpenState();
+      event.preventDefault();
+    }, false);
+  }
+
+  var expandCurrentMonthButton = document.querySelector('.js-expand-current-month');
+  if (expandCurrentMonthButton) {
+    expandCurrentMonthButton.addEventListener('click', function (event) {
+      expandCurrentMonth();
+      saveGroupOpenState();
+      event.preventDefault();
+    }, false);
   }
 
   var items = document.querySelectorAll('.task-item');
@@ -134,6 +315,7 @@ document.addEventListener('DOMContentLoaded', function () {
       }
 
       syncYearToggle(yearSection);
+      saveGroupOpenState();
       event.preventDefault();
       return;
     }
@@ -156,6 +338,7 @@ document.addEventListener('DOMContentLoaded', function () {
       }
 
       syncMonthToggle(monthSection);
+      saveGroupOpenState();
       event.preventDefault();
       return;
     }
@@ -178,6 +361,7 @@ document.addEventListener('DOMContentLoaded', function () {
       }
 
       syncDayToggle(section);
+      saveGroupOpenState();
       event.preventDefault();
       return;
     }
@@ -207,7 +391,7 @@ document.addEventListener('DOMContentLoaded', function () {
   }, false);
 
 
-  function setupAttachmentPicker(input, selectedContainer, addButton, maxFiles) {
+  function setupAttachmentPicker(input, selectedContainer, addButton, maxFiles, uploadButton) {
     if (!input || !selectedContainer || typeof DataTransfer === 'undefined') {
       return;
     }
@@ -216,6 +400,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
     var renderSelectedFiles = function () {
       selectedContainer.innerHTML = '';
+
+      if (uploadButton) {
+        uploadButton.style.display = (input.files && input.files.length > 0) ? '' : 'none';
+      }
 
       if (!input.files || input.files.length === 0) {
         return;
@@ -303,7 +491,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
   var newTaskInput = document.querySelector('.js-new-task-attachments');
   var newTaskSelected = document.getElementById('new-task-selected-files');
-  setupAttachmentPicker(newTaskInput, newTaskSelected, null, 10);
+  var newTaskAddButton = document.querySelector('.js-new-task-add-files');
+  setupAttachmentPicker(newTaskInput, newTaskSelected, newTaskAddButton, 10);
 
   var editForms = document.querySelectorAll('.js-edit-form');
   for (var editIndex = 0; editIndex < editForms.length; editIndex += 1) {
@@ -320,7 +509,97 @@ document.addEventListener('DOMContentLoaded', function () {
     var quickInput = quickForm.querySelector('.js-quick-task-attachments');
     var quickSelected = quickForm.querySelector('.js-quick-selected-files');
     var quickAddButton = quickForm.querySelector('.js-quick-add-files');
-    setupAttachmentPicker(quickInput, quickSelected, quickAddButton, 10);
+    var quickUploadButton = quickForm.querySelector('.js-quick-upload-files');
+    setupAttachmentPicker(quickInput, quickSelected, quickAddButton, 10, quickUploadButton);
+  }
+
+  function applyWrapFormat(textarea, prefix, suffix, placeholder) {
+    if (!textarea) {
+      return;
+    }
+
+    var start = textarea.selectionStart || 0;
+    var end = textarea.selectionEnd || 0;
+    var value = textarea.value || '';
+    var selected = value.slice(start, end);
+    if (selected === '') {
+      selected = placeholder;
+    }
+
+    var next = value.slice(0, start) + prefix + selected + suffix + value.slice(end);
+    textarea.value = next;
+
+    var cursorStart = start + prefix.length;
+    var cursorEnd = cursorStart + selected.length;
+    textarea.focus();
+    textarea.setSelectionRange(cursorStart, cursorEnd);
+  }
+
+  function applyLinePrefixFormat(textarea, prefix, placeholder) {
+    if (!textarea) {
+      return;
+    }
+
+    var start = textarea.selectionStart || 0;
+    var end = textarea.selectionEnd || 0;
+    var value = textarea.value || '';
+    var selected = value.slice(start, end);
+    if (selected === '') {
+      selected = placeholder;
+    }
+
+    var lines = selected.split('\n');
+    for (var lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+      lines[lineIndex] = prefix + lines[lineIndex];
+    }
+
+    var replaced = lines.join('\n');
+    var next = value.slice(0, start) + replaced + value.slice(end);
+    textarea.value = next;
+    textarea.focus();
+    textarea.setSelectionRange(start, start + replaced.length);
+  }
+
+  var descriptionToolbars = document.querySelectorAll('.desc-toolbar');
+  for (var toolbarIndex = 0; toolbarIndex < descriptionToolbars.length; toolbarIndex += 1) {
+    descriptionToolbars[toolbarIndex].addEventListener('click', function (event) {
+      var target = event.target;
+      if (!target) {
+        return;
+      }
+
+      var button = target.closest('[data-format-action]');
+      if (!button) {
+        return;
+      }
+
+      var editor = button.closest('.desc-editor');
+      var textarea = editor ? editor.querySelector('.js-format-description') : null;
+      if (!textarea) {
+        return;
+      }
+
+      var action = button.getAttribute('data-format-action');
+      if (action === 'bold') {
+        applyWrapFormat(textarea, '**', '**', 'bold text');
+      } else if (action === 'italic') {
+        applyWrapFormat(textarea, '*', '*', 'italic text');
+      } else if (action === 'h2') {
+        applyLinePrefixFormat(textarea, '## ', 'Heading');
+      } else if (action === 'ul') {
+        applyLinePrefixFormat(textarea, '- ', 'List item');
+      } else if (action === 'ol') {
+        applyLinePrefixFormat(textarea, '1. ', 'List item');
+      } else if (action === 'quote') {
+        applyLinePrefixFormat(textarea, '> ', 'Quoted text');
+      } else if (action === 'code') {
+        applyWrapFormat(textarea, '`', '`', 'code');
+      } else if (action === 'link') {
+        applyWrapFormat(textarea, '[', '](https://)', 'link text');
+      }
+
+      event.preventDefault();
+    }, false);
   }
 
   var dateOpenButtons = document.querySelectorAll('.js-date-open');
@@ -355,6 +634,13 @@ document.addEventListener('DOMContentLoaded', function () {
     }, false);
   }
 
+  var preserveGroupForms = document.querySelectorAll('.js-preserve-groups');
+  for (var preserveIndex = 0; preserveIndex < preserveGroupForms.length; preserveIndex += 1) {
+    preserveGroupForms[preserveIndex].addEventListener('submit', function () {
+      saveGroupOpenState();
+    }, false);
+  }
+
   document.addEventListener('keydown', function (event) {
     var key = event.key || event.keyCode;
     var isEscape = key === 'Escape' || key === 'Esc' || key === 27;
@@ -380,5 +666,9 @@ document.addEventListener('DOMContentLoaded', function () {
       window.location.href = cancelUrl;
       event.preventDefault();
     }
+  }, false);
+
+  window.addEventListener('beforeunload', function () {
+    saveGroupOpenState();
   }, false);
 });
