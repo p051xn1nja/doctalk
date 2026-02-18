@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 const AUTH_USERNAME = 'p051xn1nja';
 const AUTH_PASSWORD_HASH = '$2y$12$NNLt8kcJoWuCvBuHl2B0rOGOemSKshGfXflWUkReyQuRhBheIhp5i';
+const SESSION_LIFETIME = 86400; // 24 hours
 
 configureSession();
 session_start();
@@ -25,8 +26,10 @@ function configureSession(): void
 {
     $basePath = appBasePath();
 
+    ini_set('session.gc_maxlifetime', (string) SESSION_LIFETIME);
+
     session_set_cookie_params([
-        'lifetime' => 0,
+        'lifetime' => SESSION_LIFETIME,
         'path' => $basePath === '' ? '/' : $basePath . '/',
         'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
         'httponly' => true,
