@@ -336,6 +336,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         html * {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
         }
+
+        .password-toggle-wrapper {
+            position: relative;
+            display: inline-flex;
+            width: 100%;
+            align-items: center;
+        }
+
+        .password-toggle-wrapper input[type="password"],
+        .password-toggle-wrapper input[type="text"] {
+            width: 100%;
+            padding-right: 40px;
+        }
+
+        .password-toggle-button {
+            position: absolute;
+            right: 8px;
+            border: none;
+            background: transparent;
+            color: #696969;
+            cursor: pointer;
+            font-size: 18px;
+            line-height: 1;
+            width: auto;
+            margin: 0;
+            padding: 0 4px;
+        }
+
+        .password-toggle-button:hover {
+            color: #001b6b;
+            background: transparent;
+        }
+
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
@@ -856,6 +889,114 @@ for (let i = 1; i <= totalPages; i++) {
 document.getElementById("clearButton").addEventListener("click", () => {
 document.getElementById("userInput").value = ""; // Clear the input field only
 });
+
+// Keep task menus expanded after Undo/Done actions and place Edit after action buttons.
+document.addEventListener("DOMContentLoaded", () => {
+    const captureExpandedState = () => {
+        const openDetails = Array.from(document.querySelectorAll("details[open]"));
+        const expandedNodes = Array.from(document.querySelectorAll('[aria-expanded="true"]'));
+
+        return { openDetails, expandedNodes };
+    };
+
+    const restoreExpandedState = (state) => {
+        state.openDetails.forEach((node) => {
+            if (document.contains(node)) {
+                node.setAttribute("open", "open");
+            }
+        });
+
+        state.expandedNodes.forEach((node) => {
+            if (document.contains(node)) {
+                node.setAttribute("aria-expanded", "true");
+            }
+        });
+    };
+
+    const isActionButton = (button, action) => {
+        const text = (button.textContent || "").trim().toLowerCase();
+        return text === action || button.dataset.action === action;
+    };
+
+    const findSiblingEditButton = (button) => {
+        const container = button.closest(".task-actions, .actions, .menu-actions") || button.parentElement;
+        if (!container) {
+            return null;
+        }
+
+        return Array.from(container.querySelectorAll("button")).find((candidate) => {
+            const text = (candidate.textContent || "").trim().toLowerCase();
+            return text === "edit" || candidate.dataset.action === "edit";
+        }) || null;
+    };
+
+    document.body.addEventListener("click", (event) => {
+        const button = event.target.closest("button");
+        if (!button) {
+            return;
+        }
+
+        const isUndoOrDone = isActionButton(button, "undo") || isActionButton(button, "done");
+        if (!isUndoOrDone) {
+            return;
+        }
+
+        const previousState = captureExpandedState();
+        const editButton = findSiblingEditButton(button);
+
+        requestAnimationFrame(() => {
+            restoreExpandedState(previousState);
+
+            if (editButton && document.contains(editButton)) {
+                button.insertAdjacentElement("afterend", editButton);
+                editButton.style.backgroundColor = "#008000";
+                editButton.style.color = "#ffffff";
+            }
+        });
+    });
+});
+
+
+// Add an eye icon to password fields to toggle visibility.
+document.addEventListener("DOMContentLoaded", () => {
+    const passwordInputs = document.querySelectorAll('input[type="password"]');
+
+    passwordInputs.forEach((passwordInput, index) => {
+        if (passwordInput.dataset.passwordToggleInitialized === "true") {
+            return;
+        }
+
+        passwordInput.dataset.passwordToggleInitialized = "true";
+
+        const wrapper = document.createElement("span");
+        wrapper.className = "password-toggle-wrapper";
+        passwordInput.parentNode.insertBefore(wrapper, passwordInput);
+        wrapper.appendChild(passwordInput);
+
+        const toggleButton = document.createElement("button");
+        toggleButton.type = "button";
+        toggleButton.className = "password-toggle-button";
+
+        if (!passwordInput.id) {
+            passwordInput.id = `password-field-${index}`;
+        }
+
+        toggleButton.setAttribute("aria-label", "Show password");
+        toggleButton.setAttribute("aria-controls", passwordInput.id);
+        toggleButton.setAttribute("aria-pressed", "false");
+        toggleButton.innerHTML = "&#128065;";
+
+        toggleButton.addEventListener("click", () => {
+            const showingPassword = passwordInput.type === "text";
+            passwordInput.type = showingPassword ? "password" : "text";
+            toggleButton.setAttribute("aria-label", showingPassword ? "Show password" : "Hide password");
+            toggleButton.setAttribute("aria-pressed", showingPassword ? "false" : "true");
+        });
+
+        wrapper.appendChild(toggleButton);
+    });
+});
+
 </script>
 </body>
 </html>
