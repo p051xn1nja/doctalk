@@ -1149,7 +1149,7 @@ $csrfToken = $_SESSION['csrf_token'];
     .desc-editor { display:grid; gap:8px; }
     .desc-toolbar { display:flex; flex-wrap:wrap; gap:6px; }
     .desc-tool-btn { background:#1e293b; color:var(--text); border:1px solid #334155; border-radius:8px; padding:6px 10px; font-size:.85rem; }
-    .task-row-action-btn { min-height:42px; }
+    .task-row-action-btn { height:42px; min-height:42px; padding:0 14px; line-height:1; display:inline-flex; align-items:center; justify-content:center; }
 
     button { border:0; cursor:pointer; transition:transform .12s ease, filter .2s ease, background-color .2s ease; }
     button:hover { filter:brightness(1.05); }
