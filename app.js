@@ -53,6 +53,64 @@ document.addEventListener('DOMContentLoaded', function () {
     toggle.textContent = open ? 'Day ▴' : 'Day ▾';
   }
 
+  function setOpenState(element, shouldOpen) {
+    if (!element) {
+      return;
+    }
+
+    if (shouldOpen) {
+      addClass(element, 'is-open');
+    } else {
+      removeClass(element, 'is-open');
+    }
+  }
+
+  function expandAllGroups() {
+    var years = document.querySelectorAll('.year-group');
+    for (var yIndex = 0; yIndex < years.length; yIndex += 1) {
+      var year = years[yIndex];
+      setOpenState(year.querySelector('.js-year-months'), true);
+      syncYearToggle(year);
+    }
+
+    var months = document.querySelectorAll('.month-group');
+    for (var mIndex = 0; mIndex < months.length; mIndex += 1) {
+      var month = months[mIndex];
+      setOpenState(month.querySelector('.js-month-days'), true);
+      syncMonthToggle(month);
+    }
+
+    var days = document.querySelectorAll('.day-group');
+    for (var dIndex = 0; dIndex < days.length; dIndex += 1) {
+      var day = days[dIndex];
+      setOpenState(day.querySelector('.js-day-tasks'), true);
+      syncDayToggle(day);
+    }
+  }
+
+  function expandCurrentMonth() {
+    var currentMonthKey = new Date().toISOString().slice(0, 7);
+    var targetMonth = document.querySelector('.month-group[data-month-key="' + currentMonthKey + '"]');
+    if (!targetMonth) {
+      return;
+    }
+
+    var parentYear = targetMonth.closest('.year-group');
+    if (parentYear) {
+      setOpenState(parentYear.querySelector('.js-year-months'), true);
+      syncYearToggle(parentYear);
+    }
+
+    setOpenState(targetMonth.querySelector('.js-month-days'), true);
+    syncMonthToggle(targetMonth);
+
+    var dayGroups = targetMonth.querySelectorAll('.day-group');
+    for (var index = 0; index < dayGroups.length; index += 1) {
+      setOpenState(dayGroups[index].querySelector('.js-day-tasks'), true);
+      syncDayToggle(dayGroups[index]);
+    }
+  }
+
   function syncToggle(item) {
     var toggle = item.querySelector('.js-details-toggle');
     var details = item.querySelector('.js-task-details');
@@ -79,6 +137,22 @@ document.addEventListener('DOMContentLoaded', function () {
   var daySections = document.querySelectorAll('.day-group');
   for (var d = 0; d < daySections.length; d += 1) {
     syncDayToggle(daySections[d]);
+  }
+
+  var expandAllButton = document.querySelector('.js-expand-all-groups');
+  if (expandAllButton) {
+    expandAllButton.addEventListener('click', function (event) {
+      expandAllGroups();
+      event.preventDefault();
+    }, false);
+  }
+
+  var expandCurrentMonthButton = document.querySelector('.js-expand-current-month');
+  if (expandCurrentMonthButton) {
+    expandCurrentMonthButton.addEventListener('click', function (event) {
+      expandCurrentMonth();
+      event.preventDefault();
+    }, false);
   }
 
   var items = document.querySelectorAll('.task-item');
@@ -207,7 +281,7 @@ document.addEventListener('DOMContentLoaded', function () {
   }, false);
 
 
-  function setupAttachmentPicker(input, selectedContainer, addButton, maxFiles) {
+  function setupAttachmentPicker(input, selectedContainer, addButton, maxFiles, uploadButton) {
     if (!input || !selectedContainer || typeof DataTransfer === 'undefined') {
       return;
     }
@@ -216,6 +290,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
     var renderSelectedFiles = function () {
       selectedContainer.innerHTML = '';
+
+      if (uploadButton) {
+        uploadButton.style.display = (input.files && input.files.length > 0) ? '' : 'none';
+      }
 
       if (!input.files || input.files.length === 0) {
         return;
@@ -303,7 +381,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
   var newTaskInput = document.querySelector('.js-new-task-attachments');
   var newTaskSelected = document.getElementById('new-task-selected-files');
-  setupAttachmentPicker(newTaskInput, newTaskSelected, null, 10);
+  var newTaskAddButton = document.querySelector('.js-new-task-add-files');
+  setupAttachmentPicker(newTaskInput, newTaskSelected, newTaskAddButton, 10);
 
   var editForms = document.querySelectorAll('.js-edit-form');
   for (var editIndex = 0; editIndex < editForms.length; editIndex += 1) {
@@ -320,7 +399,97 @@ document.addEventListener('DOMContentLoaded', function () {
     var quickInput = quickForm.querySelector('.js-quick-task-attachments');
     var quickSelected = quickForm.querySelector('.js-quick-selected-files');
     var quickAddButton = quickForm.querySelector('.js-quick-add-files');
-    setupAttachmentPicker(quickInput, quickSelected, quickAddButton, 10);
+    var quickUploadButton = quickForm.querySelector('.js-quick-upload-files');
+    setupAttachmentPicker(quickInput, quickSelected, quickAddButton, 10, quickUploadButton);
+  }
+
+  function applyWrapFormat(textarea, prefix, suffix, placeholder) {
+    if (!textarea) {
+      return;
+    }
+
+    var start = textarea.selectionStart || 0;
+    var end = textarea.selectionEnd || 0;
+    var value = textarea.value || '';
+    var selected = value.slice(start, end);
+    if (selected === '') {
+      selected = placeholder;
+    }
+
+    var next = value.slice(0, start) + prefix + selected + suffix + value.slice(end);
+    textarea.value = next;
+
+    var cursorStart = start + prefix.length;
+    var cursorEnd = cursorStart + selected.length;
+    textarea.focus();
+    textarea.setSelectionRange(cursorStart, cursorEnd);
+  }
+
+  function applyLinePrefixFormat(textarea, prefix, placeholder) {
+    if (!textarea) {
+      return;
+    }
+
+    var start = textarea.selectionStart || 0;
+    var end = textarea.selectionEnd || 0;
+    var value = textarea.value || '';
+    var selected = value.slice(start, end);
+    if (selected === '') {
+      selected = placeholder;
+    }
+
+    var lines = selected.split('\n');
+    for (var lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+      lines[lineIndex] = prefix + lines[lineIndex];
+    }
+
+    var replaced = lines.join('\n');
+    var next = value.slice(0, start) + replaced + value.slice(end);
+    textarea.value = next;
+    textarea.focus();
+    textarea.setSelectionRange(start, start + replaced.length);
+  }
+
+  var descriptionToolbars = document.querySelectorAll('.desc-toolbar');
+  for (var toolbarIndex = 0; toolbarIndex < descriptionToolbars.length; toolbarIndex += 1) {
+    descriptionToolbars[toolbarIndex].addEventListener('click', function (event) {
+      var target = event.target;
+      if (!target) {
+        return;
+      }
+
+      var button = target.closest('[data-format-action]');
+      if (!button) {
+        return;
+      }
+
+      var editor = button.closest('.desc-editor');
+      var textarea = editor ? editor.querySelector('.js-format-description') : null;
+      if (!textarea) {
+        return;
+      }
+
+      var action = button.getAttribute('data-format-action');
+      if (action === 'bold') {
+        applyWrapFormat(textarea, '**', '**', 'bold text');
+      } else if (action === 'italic') {
+        applyWrapFormat(textarea, '*', '*', 'italic text');
+      } else if (action === 'h2') {
+        applyLinePrefixFormat(textarea, '## ', 'Heading');
+      } else if (action === 'ul') {
+        applyLinePrefixFormat(textarea, '- ', 'List item');
+      } else if (action === 'ol') {
+        applyLinePrefixFormat(textarea, '1. ', 'List item');
+      } else if (action === 'quote') {
+        applyLinePrefixFormat(textarea, '> ', 'Quoted text');
+      } else if (action === 'code') {
+        applyWrapFormat(textarea, '`', '`', 'code');
+      } else if (action === 'link') {
+        applyWrapFormat(textarea, '[', '](https://)', 'link text');
+      }
+
+      event.preventDefault();
+    }, false);
   }
 
   var dateOpenButtons = document.querySelectorAll('.js-date-open');
