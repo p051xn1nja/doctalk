@@ -343,6 +343,30 @@ function containsSafe(string $haystack, string $needle): bool
     return strpos($haystack, $needle) !== false;
 }
 
+function renderDescriptionHtml(string $description): string
+{
+    $escaped = htmlspecialchars($description, ENT_QUOTES, 'UTF-8');
+
+    $escaped = preg_replace('/\*\*(.+?)\*\*/s', '<strong>$1</strong>', $escaped) ?? $escaped;
+    $escaped = preg_replace('/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/s', '<em>$1</em>', $escaped) ?? $escaped;
+    $escaped = preg_replace('/`([^`]+)`/', '<code>$1</code>', $escaped) ?? $escaped;
+    $escaped = preg_replace('/^##\s+(.+)$/m', '<h4>$1</h4>', $escaped) ?? $escaped;
+    $escaped = preg_replace('/^>\s+(.+)$/m', '<blockquote>$1</blockquote>', $escaped) ?? $escaped;
+
+    $escaped = preg_replace_callback('/\[(.*?)\]\((https?:\/\/[^)\s]+)\)/', static function (array $match): string {
+        $label = $match[1];
+        $url = html_entity_decode($match[2], ENT_QUOTES, 'UTF-8');
+        if (filter_var($url, FILTER_VALIDATE_URL) === false) {
+            return $match[0];
+        }
+
+        $safeHref = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
+        return '<a href="' . $safeHref . '" target="_blank" rel="noopener noreferrer">' . $label . '</a>';
+    }, $escaped) ?? $escaped;
+
+    return nl2br($escaped);
+}
+
 function groupedByYearMonthDay(array $tasks): array
 {
     $groups = [];
@@ -1125,6 +1149,7 @@ $csrfToken = $_SESSION['csrf_token'];
     .desc-editor { display:grid; gap:8px; }
     .desc-toolbar { display:flex; flex-wrap:wrap; gap:6px; }
     .desc-tool-btn { background:#1e293b; color:var(--text); border:1px solid #334155; border-radius:8px; padding:6px 10px; font-size:.85rem; }
+    .task-row-action-btn { min-height:42px; }
 
     button { border:0; cursor:pointer; transition:transform .12s ease, filter .2s ease, background-color .2s ease; }
     button:hover { filter:brightness(1.05); }
@@ -1377,7 +1402,7 @@ $csrfToken = $_SESSION['csrf_token'];
                     <input type="hidden" name="page" value="<?= (int) $page; ?>">
                     <input type="hidden" name="per_page" value="<?= (int) $perPage; ?>">
                     <input type="hidden" name="edit" value="<?= htmlspecialchars((string) ($task['id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
-                    <button class="logout-btn" type="submit">Edit</button>
+                    <button class="logout-btn task-row-action-btn" type="submit">Edit</button>
                   </form>
                   <form class="js-quick-attach-form" method="post" enctype="multipart/form-data" autocomplete="off" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                     <input type="hidden" name="action" value="addAttachment">
@@ -1390,7 +1415,7 @@ $csrfToken = $_SESSION['csrf_token'];
                     <?php if ($toDate !== ''): ?><input type="hidden" name="to" value="<?= htmlspecialchars($toDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
                     <input type="hidden" name="page" value="<?= (int) $page; ?>">
                     <input type="hidden" name="per_page" value="<?= (int) $perPage; ?>">
-                    <button class="ghost-btn js-quick-add-files" type="button">+ Add files</button>
+                    <button class="ghost-btn js-quick-add-files task-row-action-btn" type="button">+ Add files</button>
                     <button class="add-btn js-quick-upload-files" type="submit" style="display:none;">Upload files</button>
                     <input class="js-quick-task-attachments" name="attachment[]" type="file" multiple accept=".docx,.pdf,.txt,.md,.xlsx,.xls,.ppt,.pptx,.zip,.php,.js,.css,.html,.py" style="display:none;">
                     <div class="selected-files js-quick-selected-files" aria-live="polite" style="width:100%;"></div>
@@ -1406,7 +1431,7 @@ $csrfToken = $_SESSION['csrf_token'];
                     <?php if ($toDate !== ''): ?><input type="hidden" name="to" value="<?= htmlspecialchars($toDate, ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
                     <input type="hidden" name="page" value="<?= (int) $page; ?>">
                     <input type="hidden" name="per_page" value="<?= (int) $perPage; ?>">
-                    <button class="danger-btn" type="submit">Delete</button>
+                    <button class="danger-btn task-row-action-btn" type="submit">Delete</button>
                   </form>
                 </div>
 
@@ -1449,7 +1474,7 @@ $csrfToken = $_SESSION['csrf_token'];
 
                     <div class="task-details js-task-details is-open">
                       <?php if (($task['description'] ?? '') !== ''): ?>
-                        <p class="desc"><?= htmlspecialchars((string) $task['description'], ENT_QUOTES, 'UTF-8'); ?></p>
+                        <p class="desc"><?= renderDescriptionHtml((string) $task['description']); ?></p>
                       <?php endif; ?>
                       <?php $taskAttachments = isset($task['attachments']) && is_array($task['attachments']) ? $task['attachments'] : (is_array($task['attachment'] ?? null) ? [$task['attachment']] : []); ?>
                       <?php if (count($taskAttachments) > 0): ?>
@@ -1480,7 +1505,7 @@ $csrfToken = $_SESSION['csrf_token'];
                 <?php else: ?>
                   <div class="task-details js-task-details">
                     <?php if (($task['description'] ?? '') !== ''): ?>
-                      <p class="desc"><?= htmlspecialchars((string) $task['description'], ENT_QUOTES, 'UTF-8'); ?></p>
+                      <p class="desc"><?= renderDescriptionHtml((string) $task['description']); ?></p>
                     <?php endif; ?>
 
                     <?php $taskAttachments = isset($task['attachments']) && is_array($task['attachments']) ? $task['attachments'] : (is_array($task['attachment'] ?? null) ? [$task['attachment']] : []); ?>
