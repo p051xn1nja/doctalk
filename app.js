@@ -641,6 +641,23 @@ document.addEventListener('DOMContentLoaded', function () {
     }, false);
   }
 
+
+  var activeEditForm = document.querySelector('.js-edit-form[data-focus-edit-description="true"]');
+  if (activeEditForm) {
+    var editDescription = activeEditForm.querySelector('textarea[name="description"]');
+    if (editDescription) {
+      window.requestAnimationFrame(function () {
+        if (typeof editDescription.focus === 'function') {
+          editDescription.focus();
+        }
+        if (typeof editDescription.setSelectionRange === 'function') {
+          var end = editDescription.value.length;
+          editDescription.setSelectionRange(end, end);
+        }
+      });
+    }
+  }
+
   document.addEventListener('keydown', function (event) {
     var key = event.key || event.keyCode;
     var isEscape = key === 'Escape' || key === 'Esc' || key === 27;
